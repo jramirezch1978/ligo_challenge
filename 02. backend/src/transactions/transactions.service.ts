@@ -11,6 +11,8 @@ import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { TransactionStatusResponseDto } from './dto/transaction-status-response.dto';
 import { IdempotencyService } from '@app/idempotency/idempotency.service';
 import { AuditService } from '@app/audit/audit.service';
+import { WalletAccessService } from '@app/common/access/wallet-access.service';
+import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 import { WalletStatus } from '@app/common/enums/wallet-status.enum';
 import { TransactionStatus } from '@app/common/enums/transaction-status.enum';
 import { TransactionType } from '@app/common/enums/transaction-type.enum';
@@ -42,13 +44,15 @@ export class TransactionsService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly idempotencyService: IdempotencyService,
     private readonly auditService: AuditService,
+    private readonly walletAccessService: WalletAccessService,
   ) {}
 
   async createTransaction(
     dto: CreateTransactionDto,
     idempotencyKey: string,
-    performedBy: string,
+    actor: JwtPayload,
   ): Promise<{ statusCode: number; body: TransactionResponseDto; replayed: boolean }> {
+    const performedBy = actor.username;
     return this.withTransaction(async (queryRunner) => {
       const result = await this.idempotencyService.run(
         queryRunner,
@@ -57,6 +61,7 @@ export class TransactionsService {
         dto,
         async () => {
           const wallet = await this.lockWallet(queryRunner, dto.walletId);
+          this.walletAccessService.assertCanOperate(actor, wallet);
           this.assertWalletOperable(wallet, dto.currency);
 
           const amount = Money.of(dto.amount);
@@ -116,8 +121,9 @@ export class TransactionsService {
   async transfer(
     dto: TransferDto,
     idempotencyKey: string,
-    performedBy: string,
+    actor: JwtPayload,
   ): Promise<{ statusCode: number; body: TransactionResponseDto; replayed: boolean }> {
+    const performedBy = actor.username;
     if (dto.sourceWalletId === dto.targetWalletId) {
       throw new SameWalletTransferException();
     }
@@ -137,6 +143,9 @@ export class TransactionsService {
           const sourceWallet = firstWallet.id === dto.sourceWalletId ? firstWallet : secondWallet;
           const targetWallet = firstWallet.id === dto.targetWalletId ? firstWallet : secondWallet;
 
+          // Only the source wallet ownership is enforced: a customer may send funds to any
+          // wallet, but may only debit funds from a wallet they own.
+          this.walletAccessService.assertCanOperate(actor, sourceWallet);
           this.assertWalletOperable(sourceWallet, dto.currency);
           this.assertWalletOperable(targetWallet, dto.currency);
 
@@ -204,8 +213,9 @@ export class TransactionsService {
     transactionId: string,
     dto: ReversalDto,
     idempotencyKey: string,
-    performedBy: string,
+    actor: JwtPayload,
   ): Promise<{ statusCode: number; body: TransactionResponseDto; replayed: boolean }> {
+    const performedBy = actor.username;
     return this.withTransaction(async (queryRunner) => {
       return this.idempotencyService.run(
         queryRunner,
@@ -241,6 +251,9 @@ export class TransactionsService {
             const sourceWallet = firstWallet.id === original.walletId ? firstWallet : secondWallet;
             const targetWallet =
               firstWallet.id === original.targetWalletId ? firstWallet : secondWallet;
+
+            // Only the original source wallet's owner may reverse the transfer.
+            this.walletAccessService.assertCanOperate(actor, sourceWallet);
 
             // Reversal of a transfer: money flows back from target to source.
             const newTargetBalance = Money.of(targetWallet.availableBalance).subtract(amount);
@@ -295,6 +308,7 @@ export class TransactionsService {
 
           // Reversal of a simple DEBIT/CREDIT: apply the inverse movement on the same wallet.
           const wallet = await this.lockWallet(queryRunner, original.walletId);
+          this.walletAccessService.assertCanOperate(actor, wallet);
           const currentBalance = Money.of(wallet.availableBalance);
           const isInverseDebit = original.type === TransactionType.CREDIT;
           let newBalance: Money;

@@ -5,6 +5,14 @@ import { timingSafeEqual } from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { UserRole } from '@app/common/enums/user-role.enum';
+
+interface MockAccount {
+  username: string;
+  password: string;
+  role: UserRole;
+  ownerName: string | null;
+}
 
 @Injectable()
 export class AuthService {
@@ -14,25 +22,48 @@ export class AuthService {
   ) {}
 
   login(dto: LoginDto): LoginResponseDto {
-    if (!this.isValidCredentials(dto.username, dto.password)) {
+    const account = this.resolveAccount(dto.username, dto.password);
+    if (!account) {
       // Generic message on purpose: never reveal whether the username exists.
       throw new UnauthorizedException('Invalid username or password');
     }
 
     const expiresIn = this.configService.get<number>('jwt.expiresIn', 3600);
-    const payload: JwtPayload = { sub: dto.username, username: dto.username };
+    const payload: JwtPayload = {
+      sub: account.username,
+      username: account.username,
+      role: account.role,
+      ownerName: account.ownerName,
+    };
     const token = this.jwtService.sign(payload, { expiresIn });
 
     return { token, expiresIn };
   }
 
-  private isValidCredentials(username: string, password: string): boolean {
-    const expectedUsername = this.configService.get<string>('auth.mockUsername', '');
-    const expectedPassword = this.configService.get<string>('auth.mockPassword', '');
+  /**
+   * Resolves the demo/mock identity matching the given credentials. There is no real user
+   * store: two fixed accounts are provisioned via environment variables so the ownership
+   * authorization rule (ADMIN vs CUSTOMER, see WalletAccessService) can be exercised end to end.
+   */
+  private resolveAccount(username: string, password: string): MockAccount | null {
+    const admin: MockAccount = {
+      username: this.configService.get<string>('auth.mockUsername', ''),
+      password: this.configService.get<string>('auth.mockPassword', ''),
+      role: UserRole.ADMIN,
+      ownerName: null,
+    };
+    const customer: MockAccount = {
+      username: this.configService.get<string>('auth.customerUsername', ''),
+      password: this.configService.get<string>('auth.customerPassword', ''),
+      role: UserRole.CUSTOMER,
+      ownerName: this.configService.get<string>('auth.customerOwnerName', ''),
+    };
 
-    return (
-      this.safeCompare(username, expectedUsername) && this.safeCompare(password, expectedPassword)
-    );
+    return [admin, customer].find(
+      (account) =>
+        this.safeCompare(username, account.username) &&
+        this.safeCompare(password, account.password),
+    ) ?? null;
   }
 
   /** Constant-time comparison to avoid leaking information through response-time side channels. */

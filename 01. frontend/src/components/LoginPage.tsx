@@ -55,7 +55,11 @@ export function LoginPage() {
           {isSubmitting ? 'Ingresando...' : 'Ingresar'}
         </button>
 
-        <p className="login-card__hint">Credenciales demo: senior.backend / Password123</p>
+        <p className="login-card__hint">
+          Credenciales demo: senior.backend / Password123 (admin, acceso a todas las wallets)
+          <br />
+          o juan.perez / Cliente123 (cliente, solo wallet wal_001)
+        </p>
       </form>
     </div>
   );

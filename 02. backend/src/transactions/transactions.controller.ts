@@ -29,6 +29,7 @@ export class TransactionsController {
   @ApiHeader({ name: 'Idempotency-Key', required: true, description: 'Client-generated UUID' })
   @ApiResponse({ status: 201, type: TransactionResponseDto })
   @ApiResponse({ status: 400, description: 'Validation error or missing Idempotency-Key' })
+  @ApiResponse({ status: 403, description: 'Wallet does not belong to the authenticated customer' })
   @ApiResponse({ status: 404, description: 'Wallet not found' })
   @ApiResponse({ status: 409, description: 'Idempotency-Key conflict' })
   @ApiResponse({
@@ -44,7 +45,7 @@ export class TransactionsController {
     const { statusCode, body } = await this.transactionsService.createTransaction(
       dto,
       idempotencyKey,
-      user.username,
+      user,
     );
     res.status(statusCode);
     return body;
@@ -56,6 +57,10 @@ export class TransactionsController {
   })
   @ApiHeader({ name: 'Idempotency-Key', required: true, description: 'Client-generated UUID' })
   @ApiResponse({ status: 201, type: TransactionResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: 'Source wallet does not belong to the authenticated customer',
+  })
   @ApiResponse({ status: 404, description: 'Wallet not found' })
   @ApiResponse({ status: 409, description: 'Idempotency-Key conflict' })
   @ApiResponse({ status: 422, description: 'Business rule violation' })
@@ -68,7 +73,7 @@ export class TransactionsController {
     const { statusCode, body } = await this.transactionsService.transfer(
       dto,
       idempotencyKey,
-      user.username,
+      user,
     );
     res.status(statusCode);
     return body;
@@ -79,6 +84,10 @@ export class TransactionsController {
   @ApiParam({ name: 'transactionId', example: 'txn_001' })
   @ApiHeader({ name: 'Idempotency-Key', required: true, description: 'Client-generated UUID' })
   @ApiResponse({ status: 201, type: TransactionResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: 'Original transaction wallet does not belong to the authenticated customer',
+  })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
   @ApiResponse({
     status: 409,
@@ -96,7 +105,7 @@ export class TransactionsController {
       transactionId,
       dto,
       idempotencyKey,
-      user.username,
+      user,
     );
     res.status(statusCode);
     return body;

@@ -70,6 +70,7 @@ Una reversa **no** modifica la transacción original in-place; crea una **nueva 
 
 - Login simulado que firma un JWT real (HS256) sobre credenciales mock validadas con comparación de tiempo constante (`crypto.timingSafeEqual`).
 - `JwtAuthGuard` global; rutas públicas explícitas vía `@Public()` (login, health checks, Swagger).
+- **Autorización por propiedad de wallet** (`WalletAccessService`): el JWT lleva `role` (`ADMIN`/`CUSTOMER`) y `ownerName`. `ADMIN` (cuenta de backoffice, `senior.backend`) opera cualquier wallet; `CUSTOMER` (cuenta demo `juan.perez`, ligada al `ownerName` "Juan Perez") solo puede operar wallets cuyo `ownerName` coincide, y recibe `403 Forbidden` en caso contrario. Se aplica en balance, movimientos, débito/crédito, el lado origen de una transferencia y la reversa.
 - Validación estricta de DTOs con `class-validator` (`whitelist`, `forbidNonWhitelisted`).
 - Filtro de excepciones centralizado: nunca expone stack traces; solo se loguean server-side.
 - `LoggingInterceptor` redacta campos sensibles (`password`, `token`, `authorization`, etc.) antes de loguear.
@@ -81,7 +82,7 @@ Una reversa **no** modifica la transacción original in-place; crea una **nueva 
 |---|---|
 | 400 | Validación de DTO o header `Idempotency-Key` faltante/ inválido |
 | 401 | JWT ausente/ inválido/expirado, o credenciales de login inválidas |
-| 403 | Reservado para autorización por rol/alcance (extensible vía guards) |
+| 403 | El wallet solicitado no pertenece al usuario autenticado (rol `CUSTOMER`, ver `WalletAccessService`) |
 | 404 | Wallet o transacción no encontrada |
 | 409 | Conflicto de `Idempotency-Key`, o intento de reversar una transacción ya reversada |
 | 422 | Regla de negocio violada (wallet inactiva, fondos insuficientes, monedas distintas, transacción no reversable) |

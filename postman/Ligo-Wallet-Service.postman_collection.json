@@ -7,6 +7,7 @@
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000/api" },
     { "key": "token", "value": "" },
+    { "key": "customerToken", "value": "" },
     { "key": "walletId1", "value": "wal_001" },
     { "key": "walletId2", "value": "wal_002" },
     { "key": "blockedWalletId", "value": "wal_004" },
@@ -45,6 +46,32 @@
             },
             "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
           }
+        },
+        {
+          "name": "Login (customer, CUSTOMER role, owns wal_001 only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('customerToken', body.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"juan.perez\",\n  \"password\": \"Cliente123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
         }
       ]
     },
@@ -59,6 +86,21 @@
               "raw": "{{baseUrl}}/wallets/{{walletId1}}/balance",
               "host": ["{{baseUrl}}"],
               "path": ["wallets", "{{walletId1}}", "balance"]
+            }
+          }
+        },
+        {
+          "name": "Get balance of another owner's wallet with customer token (expect 403)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/{{walletId2}}/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "{{walletId2}}", "balance"]
             }
           }
         },

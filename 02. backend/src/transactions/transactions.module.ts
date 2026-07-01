@@ -7,6 +7,7 @@ import { TransactionsService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
 import { IdempotencyModule } from '@app/idempotency/idempotency.module';
 import { AuditModule } from '@app/audit/audit.module';
+import { WalletAccessService } from '@app/common/access/wallet-access.service';
 
 @Module({
   imports: [
@@ -15,6 +16,6 @@ import { AuditModule } from '@app/audit/audit.module';
     AuditModule,
   ],
   controllers: [TransactionsController],
-  providers: [TransactionsService],
+  providers: [TransactionsService, WalletAccessService],
 })
 export class TransactionsModule {}

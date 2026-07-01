@@ -6,6 +6,9 @@ import { WalletEntity } from '@app/wallets/entities/wallet.entity';
 import { WalletStatus } from '@app/common/enums/wallet-status.enum';
 import { TransactionStatus } from '@app/common/enums/transaction-status.enum';
 import { SimpleTransactionType, TransactionType } from '@app/common/enums/transaction-type.enum';
+import { UserRole } from '@app/common/enums/user-role.enum';
+import { WalletAccessService } from '@app/common/access/wallet-access.service';
+import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 import {
   CurrencyMismatchException,
   InsufficientFundsException,
@@ -13,6 +16,7 @@ import {
   TransactionAlreadyReversedException,
   TransactionNotFoundException,
   TransactionNotReversibleException,
+  WalletAccessForbiddenException,
   WalletNotActiveException,
   WalletNotFoundException,
 } from '@app/common/exceptions/business.exceptions';
@@ -111,6 +115,27 @@ const passthroughIdempotencyService = {
 };
 
 const auditService = { record: jest.fn().mockResolvedValue(undefined) };
+const walletAccessService = new WalletAccessService();
+
+const adminActor: JwtPayload = {
+  sub: 'senior.backend',
+  username: 'senior.backend',
+  role: UserRole.ADMIN,
+  ownerName: null,
+};
+
+function customerActor(ownerName: string): JwtPayload {
+  return { sub: 'juan.perez', username: 'juan.perez', role: UserRole.CUSTOMER, ownerName };
+}
+
+function buildService(dataSource: DataSource): TransactionsService {
+  return new TransactionsService(
+    dataSource,
+    passthroughIdempotencyService as never,
+    auditService as never,
+    walletAccessService,
+  );
+}
 
 describe('TransactionsService', () => {
   beforeEach(() => {
@@ -122,11 +147,7 @@ describe('TransactionsService', () => {
       const { dataSource, wallets } = createFakeDataSource([
         buildWallet({ availableBalance: '100.00' }),
       ]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       const result = await service.createTransaction(
         {
@@ -136,7 +157,7 @@ describe('TransactionsService', () => {
           currency: 'PEN',
         },
         'idem-1',
-        'senior.backend',
+        adminActor,
       );
 
       expect(result.statusCode).toBe(201);
@@ -149,11 +170,7 @@ describe('TransactionsService', () => {
       const { dataSource, wallets } = createFakeDataSource([
         buildWallet({ availableBalance: '100.00' }),
       ]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await service.createTransaction(
         {
@@ -163,7 +180,7 @@ describe('TransactionsService', () => {
           currency: 'PEN',
         },
         'idem-1',
-        'senior.backend',
+        adminActor,
       );
 
       expect(wallets.get('wal_001')?.availableBalance).toBe('130.00');
@@ -173,11 +190,7 @@ describe('TransactionsService', () => {
       const { dataSource, wallets } = createFakeDataSource([
         buildWallet({ availableBalance: '10.00' }),
       ]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.createTransaction(
@@ -188,7 +201,7 @@ describe('TransactionsService', () => {
             currency: 'PEN',
           },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(InsufficientFundsException);
       expect(wallets.get('wal_001')?.availableBalance).toBe('10.00');
@@ -196,11 +209,7 @@ describe('TransactionsService', () => {
 
     it('throws WalletNotActiveException for a blocked wallet', async () => {
       const { dataSource } = createFakeDataSource([buildWallet({ status: WalletStatus.BLOCKED })]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.createTransaction(
@@ -211,18 +220,14 @@ describe('TransactionsService', () => {
             currency: 'PEN',
           },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(WalletNotActiveException);
     });
 
     it('throws WalletNotFoundException for a missing wallet', async () => {
       const { dataSource } = createFakeDataSource([]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.createTransaction(
@@ -233,18 +238,14 @@ describe('TransactionsService', () => {
             currency: 'PEN',
           },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(WalletNotFoundException);
     });
 
     it('throws CurrencyMismatchException when currencies differ', async () => {
       const { dataSource } = createFakeDataSource([buildWallet({ currency: 'PEN' })]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.createTransaction(
@@ -255,7 +256,7 @@ describe('TransactionsService', () => {
             currency: 'USD',
           },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(CurrencyMismatchException);
     });
@@ -264,11 +265,7 @@ describe('TransactionsService', () => {
       const { dataSource, queryRunner } = createFakeDataSource([
         buildWallet({ availableBalance: '10.00' }),
       ]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.createTransaction(
@@ -279,13 +276,54 @@ describe('TransactionsService', () => {
             currency: 'PEN',
           },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(InsufficientFundsException);
 
       expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
       expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
       expect(queryRunner.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows a CUSTOMER to operate a wallet they own', async () => {
+      const { dataSource, wallets } = createFakeDataSource([
+        buildWallet({ availableBalance: '100.00', ownerName: 'Juan Perez' }),
+      ]);
+      const service = buildService(dataSource);
+
+      await service.createTransaction(
+        {
+          walletId: 'wal_001',
+          type: SimpleTransactionType.DEBIT,
+          amount: '30.00',
+          currency: 'PEN',
+        },
+        'idem-1',
+        customerActor('Juan Perez'),
+      );
+
+      expect(wallets.get('wal_001')?.availableBalance).toBe('70.00');
+    });
+
+    it('throws WalletAccessForbiddenException (403) when a CUSTOMER operates a wallet they do not own', async () => {
+      const { dataSource, wallets } = createFakeDataSource([
+        buildWallet({ availableBalance: '100.00', ownerName: 'Maria Lopez' }),
+      ]);
+      const service = buildService(dataSource);
+
+      await expect(
+        service.createTransaction(
+          {
+            walletId: 'wal_001',
+            type: SimpleTransactionType.DEBIT,
+            amount: '30.00',
+            currency: 'PEN',
+          },
+          'idem-1',
+          customerActor('Juan Perez'),
+        ),
+      ).rejects.toBeInstanceOf(WalletAccessForbiddenException);
+      expect(wallets.get('wal_001')?.availableBalance).toBe('100.00');
     });
   });
 
@@ -295,16 +333,12 @@ describe('TransactionsService', () => {
         buildWallet({ id: 'wal_001', availableBalance: '200.00' }),
         buildWallet({ id: 'wal_002', availableBalance: '50.00' }),
       ]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await service.transfer(
         { sourceWalletId: 'wal_001', targetWalletId: 'wal_002', amount: '75.00', currency: 'PEN' },
         'idem-1',
-        'senior.backend',
+        adminActor,
       );
 
       expect(wallets.get('wal_001')?.availableBalance).toBe('125.00');
@@ -313,17 +347,13 @@ describe('TransactionsService', () => {
 
     it('rejects a transfer to the same wallet before touching the database', async () => {
       const { dataSource } = createFakeDataSource([buildWallet({ id: 'wal_001' })]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.transfer(
           { sourceWalletId: 'wal_001', targetWalletId: 'wal_001', amount: '5.00', currency: 'PEN' },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(SameWalletTransferException);
     });
@@ -333,11 +363,7 @@ describe('TransactionsService', () => {
         buildWallet({ id: 'wal_001', availableBalance: '10.00' }),
         buildWallet({ id: 'wal_002', availableBalance: '50.00' }),
       ]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
         service.transfer(
@@ -348,11 +374,47 @@ describe('TransactionsService', () => {
             currency: 'PEN',
           },
           'idem-1',
-          'senior.backend',
+          adminActor,
         ),
       ).rejects.toBeInstanceOf(InsufficientFundsException);
 
       expect(wallets.get('wal_001')?.availableBalance).toBe('10.00');
+      expect(wallets.get('wal_002')?.availableBalance).toBe('50.00');
+    });
+
+    it('allows a CUSTOMER to transfer funds out of a wallet they own, to any target wallet', async () => {
+      const { dataSource, wallets } = createFakeDataSource([
+        buildWallet({ id: 'wal_001', availableBalance: '200.00', ownerName: 'Juan Perez' }),
+        buildWallet({ id: 'wal_002', availableBalance: '50.00', ownerName: 'Maria Lopez' }),
+      ]);
+      const service = buildService(dataSource);
+
+      await service.transfer(
+        { sourceWalletId: 'wal_001', targetWalletId: 'wal_002', amount: '75.00', currency: 'PEN' },
+        'idem-1',
+        customerActor('Juan Perez'),
+      );
+
+      expect(wallets.get('wal_001')?.availableBalance).toBe('125.00');
+      expect(wallets.get('wal_002')?.availableBalance).toBe('125.00');
+    });
+
+    it('throws WalletAccessForbiddenException (403) when a CUSTOMER tries to debit a wallet they do not own', async () => {
+      const { dataSource, wallets } = createFakeDataSource([
+        buildWallet({ id: 'wal_001', availableBalance: '200.00', ownerName: 'Maria Lopez' }),
+        buildWallet({ id: 'wal_002', availableBalance: '50.00', ownerName: 'Juan Perez' }),
+      ]);
+      const service = buildService(dataSource);
+
+      await expect(
+        service.transfer(
+          { sourceWalletId: 'wal_001', targetWalletId: 'wal_002', amount: '75.00', currency: 'PEN' },
+          'idem-1',
+          customerActor('Juan Perez'),
+        ),
+      ).rejects.toBeInstanceOf(WalletAccessForbiddenException);
+
+      expect(wallets.get('wal_001')?.availableBalance).toBe('200.00');
       expect(wallets.get('wal_002')?.availableBalance).toBe('50.00');
     });
   });
@@ -380,18 +442,9 @@ describe('TransactionsService', () => {
         [buildWallet({ id: 'wal_001', availableBalance: '60.00' })],
         [original],
       );
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
-      const result = await service.reverse(
-        'txn_001',
-        { reason: 'refund' },
-        'idem-2',
-        'senior.backend',
-      );
+      const result = await service.reverse('txn_001', { reason: 'refund' }, 'idem-2', adminActor);
 
       expect(result.body.type).toBe(TransactionType.REVERSAL);
       expect(wallets.get('wal_001')?.availableBalance).toBe('100.00');
@@ -401,14 +454,10 @@ describe('TransactionsService', () => {
 
     it('throws TransactionNotFoundException for an unknown transaction', async () => {
       const { dataSource } = createFakeDataSource([]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_missing', { reason: 'x' }, 'idem-2', 'senior.backend'),
+        service.reverse('txn_missing', { reason: 'x' }, 'idem-2', adminActor),
       ).rejects.toBeInstanceOf(TransactionNotFoundException);
     });
 
@@ -431,14 +480,10 @@ describe('TransactionsService', () => {
         updatedAt: new Date(),
       };
       const { dataSource } = createFakeDataSource([buildWallet({ id: 'wal_001' })], [original]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_001', { reason: 'x' }, 'idem-2', 'senior.backend'),
+        service.reverse('txn_001', { reason: 'x' }, 'idem-2', adminActor),
       ).rejects.toBeInstanceOf(TransactionAlreadyReversedException);
     });
 
@@ -461,15 +506,41 @@ describe('TransactionsService', () => {
         updatedAt: new Date(),
       };
       const { dataSource } = createFakeDataSource([buildWallet({ id: 'wal_001' })], [reversalTxn]);
-      const service = new TransactionsService(
-        dataSource,
-        passthroughIdempotencyService as never,
-        auditService as never,
-      );
+      const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_002', { reason: 'x' }, 'idem-2', 'senior.backend'),
+        service.reverse('txn_002', { reason: 'x' }, 'idem-2', adminActor),
       ).rejects.toBeInstanceOf(TransactionNotReversibleException);
+    });
+
+    it('throws WalletAccessForbiddenException (403) when a CUSTOMER reverses a transaction on a wallet they do not own', async () => {
+      const original: TransactionEntity = {
+        id: 'txn_001',
+        type: TransactionType.DEBIT,
+        status: TransactionStatus.COMPLETED,
+        walletId: 'wal_001',
+        targetWalletId: null,
+        amount: '40.00',
+        currency: 'PEN',
+        description: null,
+        externalReference: null,
+        idempotencyKey: 'idem-original',
+        reversalOfTransactionId: null,
+        reversedByTransactionId: null,
+        failureReason: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const { dataSource, wallets } = createFakeDataSource(
+        [buildWallet({ id: 'wal_001', availableBalance: '60.00', ownerName: 'Maria Lopez' })],
+        [original],
+      );
+      const service = buildService(dataSource);
+
+      await expect(
+        service.reverse('txn_001', { reason: 'refund' }, 'idem-2', customerActor('Juan Perez')),
+      ).rejects.toBeInstanceOf(WalletAccessForbiddenException);
+      expect(wallets.get('wal_001')?.availableBalance).toBe('60.00');
     });
   });
 });

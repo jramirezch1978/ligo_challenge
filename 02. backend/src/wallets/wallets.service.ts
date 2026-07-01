@@ -10,6 +10,8 @@ import { MovementsResponseDto } from './dto/movement-response.dto';
 import { WalletNotFoundException } from '@app/common/exceptions/business.exceptions';
 import { MovementTypeFilter } from '@app/common/enums/movement-type.enum';
 import { TransactionStatusFilter } from '@app/common/enums/transaction-status.enum';
+import { WalletAccessService } from '@app/common/access/wallet-access.service';
+import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 
 @Injectable()
 export class WalletsService {
@@ -18,10 +20,12 @@ export class WalletsService {
     private readonly walletRepository: Repository<WalletEntity>,
     @InjectRepository(MovementEntity)
     private readonly movementRepository: Repository<MovementEntity>,
+    private readonly walletAccessService: WalletAccessService,
   ) {}
 
-  async getBalance(walletId: string): Promise<BalanceResponseDto> {
+  async getBalance(walletId: string, user: JwtPayload): Promise<BalanceResponseDto> {
     const wallet = await this.findWalletOrFail(walletId);
+    this.walletAccessService.assertCanOperate(user, wallet);
     return {
       walletId: wallet.id,
       currency: wallet.currency,
@@ -30,8 +34,13 @@ export class WalletsService {
     };
   }
 
-  async getMovements(walletId: string, query: MovementsQueryDto): Promise<MovementsResponseDto> {
-    await this.findWalletOrFail(walletId);
+  async getMovements(
+    walletId: string,
+    query: MovementsQueryDto,
+    user: JwtPayload,
+  ): Promise<MovementsResponseDto> {
+    const wallet = await this.findWalletOrFail(walletId);
+    this.walletAccessService.assertCanOperate(user, wallet);
 
     const qb = this.movementRepository
       .createQueryBuilder('movement')

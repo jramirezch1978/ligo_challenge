@@ -18,6 +18,9 @@ export interface AppConfig {
   auth: {
     mockUsername: string;
     mockPassword: string;
+    customerUsername: string;
+    customerPassword: string;
+    customerOwnerName: string;
   };
 }
 
@@ -41,5 +44,10 @@ export default (): AppConfig => ({
   auth: {
     mockUsername: process.env.AUTH_MOCK_USERNAME ?? 'senior.backend',
     mockPassword: process.env.AUTH_MOCK_PASSWORD ?? 'Password123',
+    // Demo customer identity, scoped to a single wallet owner (wal_001 / seed data).
+    // Used to exercise the 403 ownership rule: this identity cannot touch other wallets.
+    customerUsername: process.env.AUTH_CUSTOMER_USERNAME ?? 'juan.perez',
+    customerPassword: process.env.AUTH_CUSTOMER_PASSWORD ?? 'Cliente123',
+    customerOwnerName: process.env.AUTH_CUSTOMER_OWNER_NAME ?? 'Juan Perez',
   },
 });

@@ -1,8 +1,23 @@
-import { ConflictException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+} from '@nestjs/common';
 
 export class WalletNotFoundException extends NotFoundException {
   constructor(walletId: string) {
     super(`Wallet '${walletId}' was not found`);
+  }
+}
+
+export class WalletAccessForbiddenException extends ForbiddenException {
+  constructor(walletId: string) {
+    super({
+      message: `You do not have permission to operate wallet '${walletId}'`,
+      error: 'Forbidden',
+    });
   }
 }
 

@@ -49,14 +49,21 @@ npm run start:dev            # http://localhost:3000
 
 ## Wallets precargadas (seed)
 
-| walletId  | moneda | saldo inicial | estado   |
-|-----------|--------|----------------|----------|
-| `wal_001` | PEN    | 1500.00        | ACTIVE   |
-| `wal_002` | PEN    | 500.00         | ACTIVE   |
-| `wal_003` | USD    | 200.00         | ACTIVE   |
-| `wal_004` | PEN    | 300.00         | BLOCKED  |
+| walletId  | moneda | saldo inicial | estado   | ownerName      |
+|-----------|--------|----------------|----------|----------------|
+| `wal_001` | PEN    | 1500.00        | ACTIVE   | Juan Perez     |
+| `wal_002` | PEN    | 500.00         | ACTIVE   | Maria Lopez    |
+| `wal_003` | USD    | 200.00         | ACTIVE   | Carlos Gomez   |
+| `wal_004` | PEN    | 300.00         | BLOCKED  | Ana Torres     |
 
 ## Autenticación
+
+Login simulado (sin store de usuarios real) con dos cuentas demo, cada una con un rol distinto:
+
+| Cuenta | username | password | rol | alcance |
+|---|---|---|---|---|
+| Backoffice | `senior.backend` | `Password123` | `ADMIN` | Puede operar **cualquier** wallet |
+| Cliente demo | `juan.perez` | `Cliente123` | `CUSTOMER` | Solo puede operar wallets con `ownerName = "Juan Perez"` (`wal_001`) |
 
 ```
 POST /api/auth/login
@@ -65,6 +72,9 @@ POST /api/auth/login
 
 Devuelve `{ "token": "...", "expiresIn": 3600 }`. Usar el token como `Authorization: Bearer <token>`
 en el resto de endpoints (todos protegidos salvo `/auth/login`, `/health`, `/health/ready` y `/docs`).
+
+Si se usa el token de `juan.perez` (rol `CUSTOMER`) contra un wallet que no le pertenece
+(por ejemplo `wal_002`), la API responde `403 Forbidden` (ver `WalletAccessService`).
 
 ## Endpoints principales
 

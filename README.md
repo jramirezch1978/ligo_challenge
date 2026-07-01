@@ -84,7 +84,9 @@ Al finalizar:
 | Backend health | http://localhost:3000/health |
 | PostgreSQL | localhost:5434 (`wallet_service` / usuario `ligo`) |
 
-Credenciales de demo (login): `senior.backend` / `Password123`.
+Credenciales de demo (login):
+- Backoffice (rol `ADMIN`, opera cualquier wallet): `senior.backend` / `Password123`.
+- Cliente demo (rol `CUSTOMER`, solo opera `wal_001`, dueño "Juan Perez"): `juan.perez` / `Cliente123`.
 
 > `build.bat` compila cada proyecto (instala dependencias y genera el artefacto: `dist/` en backend y
 > frontend). `deploy.bat` construye la imagen Docker correspondiente y levanta el contenedor en la red
