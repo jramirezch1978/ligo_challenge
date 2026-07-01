@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
 
-require('ts-node/register');
+require('ts-node').register({ transpileOnly: true });
 require('tsconfig-paths/register');
 require('reflect-metadata');
 
