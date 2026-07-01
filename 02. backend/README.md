@@ -91,7 +91,7 @@ Si se usa el token de `juan.perez` (rol `CUSTOMER`) contra un wallet que no le p
 | GET | `/health/ready` | Readiness (verifica conexión a PostgreSQL) |
 
 Contrato completo, ejemplos y códigos de error: ver Swagger en `/docs` y la colección Postman en
-[`../postman/Ligo-Wallet-Service.postman_collection.json`](../postman/Ligo-Wallet-Service.postman_collection.json).
+[`../04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json`](<../04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json>).
 
 ## Reglas de negocio implementadas
 
@@ -110,7 +110,7 @@ Contrato completo, ejemplos y códigos de error: ver Swagger en `/docs` y la col
 - Una transacción reversada no puede volver a reversarse (`409`); una reversa no puede reversarse (`422`).
 - Toda operación crítica queda registrada en `audit_logs` (acción, entidad, quién, metadata).
 
-Detalle de arquitectura y decisiones de diseño: [`../docs/architecture.md`](../docs/architecture.md).
+Detalle de arquitectura y decisiones de diseño: [`../04. Entregables/architecture.md`](<../04. Entregables/architecture.md>).
 
 ## Testing
 
@@ -154,4 +154,4 @@ deploy.bat         Construye la imagen Docker y levanta el contenedor
 
 ## Declaración de uso de IA
 
-Ver [`../docs/ai-usage.md`](../docs/ai-usage.md).
+Ver [`../04. Entregables/ai-usage.md`](<../04. Entregables/ai-usage.md>).

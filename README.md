@@ -8,13 +8,13 @@ independiente en Docker local.
 ## Estructura del repositorio
 
 ```
-01. frontend/    React + TypeScript + Vite — SPA que consume la API (login, saldo, movimientos, operaciones)
-02. backend/     Node.js 20 + TypeScript + NestJS + TypeORM — el microservicio del challenge
-03. database/    Imagen Docker propia de PostgreSQL 17 — esquema + datos semilla horneados, independiente del backend
-docs/            Arquitectura y declaración de uso de IA
-postman/         Colección Postman de la API
-build.bat        Dispatcher unificado: build.bat [database|backend|frontend|all]
-deploy.bat       Dispatcher unificado: deploy.bat [database|backend|frontend|all]
+01. frontend/     React + TypeScript + Vite — SPA que consume la API (login, saldo, movimientos, operaciones)
+02. backend/      Node.js 20 + TypeScript + NestJS + TypeORM — el microservicio del challenge
+03. database/     Imagen Docker propia de PostgreSQL 17 — esquema + datos semilla horneados, independiente del backend
+04. Entregables/  Entregables del challenge: docker-compose.yml, diagrama de arquitectura,
+                  declaración de uso de IA y colección Postman (ver más abajo)
+build.bat         Dispatcher unificado: build.bat [database|backend|frontend|all]
+deploy.bat        Dispatcher unificado: deploy.bat [database|backend|frontend|all]
 ```
 
 Cada capa es autocontenida: tiene su propio código fuente, `Dockerfile` y sus propios `build.bat` y
@@ -31,6 +31,7 @@ El detalle de cada capa está en su propio README:
 - [`01. frontend/README.md`](<01. frontend/README.md>)
 - [`02. backend/README.md`](<02. backend/README.md>)
 - [`03. database/`](<03. database>) (ver más abajo)
+- [`04. Entregables/`](<04. Entregables>) (ver más abajo)
 
 ## Despliegue local (comando unificado)
 
@@ -94,6 +95,20 @@ Credenciales de demo (login):
 > dependencias de red en tiempo de ejecución (el backend espera activamente a PostgreSQL antes de
 > arrancar; el frontend hace de reverse proxy hacia el backend).
 
+### Alternativa: Docker Compose (app + PostgreSQL en un solo comando)
+
+Además de los `.bat` (pensados para Windows y para compilar/desplegar cada capa por separado), el
+repositorio incluye un `docker-compose.yml` en [`04. Entregables/`](<04. Entregables/docker-compose.yml>)
+que levanta las 3 capas de una sola vez con las mismas imágenes:
+
+```bash
+cd "04. Entregables"
+docker compose up --build -d   # construye y levanta postgres + backend + frontend
+docker compose ps              # ver estado / healthchecks
+docker compose down            # detener (conserva los datos)
+docker compose down -v         # detener y reiniciar la base de datos desde cero
+```
+
 ## 03. database
 
 Contiene los scripts SQL para recrear el esquema completo (`wallets`, `transactions`, `movements`,
@@ -127,7 +142,7 @@ migration:run` del backend) son compatibles entre sí sin duplicar ni chocar la 
 - Una transacción reversada no puede reversarse de nuevo; una reversa no puede reversarse.
 - Toda operación crítica queda registrada en `audit_logs`.
 
-Detalle completo de arquitectura y decisiones de diseño: [`docs/architecture.md`](docs/architecture.md).
+Detalle completo de arquitectura y decisiones de diseño: [`04. Entregables/architecture.md`](<04. Entregables/architecture.md>).
 
 ## Testing (backend)
 
@@ -139,6 +154,22 @@ npm run test:e2e                                   # integración contra Postgre
 docker compose -f docker-compose.test.yml down     # limpieza
 ```
 
+## 04. Entregables
+
+Carpeta con los entregables del challenge que no son código de una capa específica:
+
+```
+04. Entregables/
+  docker-compose.yml    Levanta postgres + backend + frontend con un solo comando
+  architecture.md        Diagrama de arquitectura y decisiones de diseño
+  ai-usage.md             Declaración de uso de IA
+  postman/
+    Ligo-Wallet-Service.postman_collection.json   Colección Postman de la API
+  README.md               Checklist de entregables exigidos por el challenge
+```
+
+Ver el checklist completo en [`04. Entregables/README.md`](<04. Entregables/README.md>).
+
 ## Declaración de uso de IA
 
-Ver [`docs/ai-usage.md`](docs/ai-usage.md).
+Ver [`04. Entregables/ai-usage.md`](<04. Entregables/ai-usage.md>).

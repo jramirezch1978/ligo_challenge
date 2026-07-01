@@ -1,0 +1,112 @@
+# =============================================================================
+# Ligo Wallet Transaction Service — Docker Compose (app + PostgreSQL)
+#
+# Levanta el stack completo (PostgreSQL 17 + backend NestJS + frontend React)
+# con un solo comando, usando las mismas imágenes/Dockerfiles que
+# build.bat/deploy.bat de cada capa (01. frontend, 02. backend, 03. database),
+# a las que llega por rutas relativas ya que este archivo vive en
+# "04. Entregables/".
+#
+# Uso (desde esta carpeta):
+#   docker compose up --build -d      # construye y levanta las 3 capas
+#   docker compose ps                 # ver estado / healthchecks
+#   docker compose logs -f backend    # logs de un servicio
+#   docker compose down               # detener (conserva el volumen de datos)
+#   docker compose down -v            # detener y reiniciar la base de datos desde cero
+#
+# URLs una vez arriba:
+#   Frontend         http://localhost:8090
+#   Backend API       http://localhost:3000/api
+#   Swagger/OpenAPI    http://localhost:3000/docs
+#   Health/Readiness  http://localhost:3000/health  y  /health/ready
+#   PostgreSQL         localhost:5434 (db "wallet_service", usuario "ligo")
+# =============================================================================
+
+services:
+  postgres:
+    build:
+      context: ../03. database
+    container_name: ligo-wallet-postgres
+    cap_add:
+      - SYS_TIME # permite a chrony (dentro de la imagen) sincronizar el reloj vía NTP
+    environment:
+      TZ: America/Lima
+      POSTGRES_USER: ligo
+      POSTGRES_PASSWORD: ligo_password
+      POSTGRES_DB: wallet_service
+    command: ['postgres', '-c', 'timezone=America/Lima', '-c', 'log_timezone=America/Lima']
+    ports:
+      - '5434:5432'
+    volumes:
+      - ligo-wallet-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ligo -d wallet_service']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - ligo-network
+
+  backend:
+    build:
+      context: ../02. backend
+    container_name: ligo-wallet-backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api
+      CORS_ORIGIN: '*'
+      TZ: America/Lima
+      DATABASE_HOST: ligo-wallet-postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ligo
+      DATABASE_PASSWORD: ligo_password
+      DATABASE_NAME: wallet_service
+      DATABASE_SSL: 'false'
+      JWT_SECRET: change-this-super-secret-key-in-production
+      JWT_EXPIRES_IN: 3600
+      AUTH_MOCK_USERNAME: senior.backend
+      AUTH_MOCK_PASSWORD: Password123
+      AUTH_CUSTOMER_USERNAME: juan.perez
+      AUTH_CUSTOMER_PASSWORD: Cliente123
+      AUTH_CUSTOMER_OWNER_NAME: Juan Perez
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - ligo-network
+
+  frontend:
+    build:
+      context: ../01. frontend
+    container_name: ligo-wallet-frontend
+    ports:
+      - '8090:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ligo-network
+
+# Compose crea su propia red y volumen con nombre calificado por el proyecto
+# (p.ej. "04-entregables_ligo-network"), independientes de los que crean
+# "docker network create ligo-network" / "docker run -v ligo-wallet-pgdata"
+# usados por los .bat de cada capa. Así este stack funciona en cualquier
+# máquina "desde cero" sin colisionar con contenedores/redes ya existentes;
+# no se puede mezclar en la misma ejecución con los .bat (uno u otro).
+networks:
+  ligo-network:
+
+volumes:
+  ligo-wallet-pgdata:
