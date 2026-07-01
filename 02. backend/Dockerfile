@@ -21,7 +21,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /usr/src/app/dist ./dist
-COPY docker/entrypoint.sh ./docker/entrypoint.sh
+COPY docker ./docker
 RUN chmod +x ./docker/entrypoint.sh && \
     addgroup -S appgroup && adduser -S appuser -G appgroup && \
     chown -R appuser:appgroup /usr/src/app

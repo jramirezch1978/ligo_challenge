@@ -90,3 +90,35 @@ Una reversa **no** modifica la transacción original in-place; crea una **nueva 
 ### 7. Por qué NestJS + TypeORM
 
 NestJS aporta una arquitectura modular por capas (Controller → Service → Repository) con inyección de dependencias, guards, pipes e interceptors nativos, ideal para aplicar Clean Code y separar responsabilidades. TypeORM permite migraciones versionadas explícitas (requisito del challenge) y control fino sobre transacciones (`QueryRunner`) necesario para el bloqueo pesimista de filas.
+
+### 8. Despliegue en 3 capas independientes
+
+El repositorio está organizado en `01. frontend`, `02. backend` y `03. database`, cada una con su propio
+`build.bat` (compilar) y `deploy.bat` (desplegar en Docker local), sin depender de un único
+`docker-compose` orquestador:
+
+```mermaid
+flowchart LR
+    FE["01. frontend\n(React + Vite, servido por nginx)"] -- "proxy /api, /health" --> BE["02. backend\n(NestJS API)"]
+    BE -- "TCP 5432" --> DB[("03. database\nPostgreSQL 17")]
+    subgraph net["red Docker compartida: ligo-network"]
+        FE
+        BE
+        DB
+    end
+```
+
+- **`03. database`** es la fuente de verdad del esquema: un contenedor `postgres:17` oficial con los
+  scripts `init/001_schema.sql` y `init/002_seed.sql` montados en `docker-entrypoint-initdb.d`. Esos
+  scripts también pre-insertan las migraciones de TypeORM en la tabla `migrations`, de modo que si el
+  backend llega a ejecutar sus propias migraciones contra esa misma base de datos (por ejemplo en un
+  entorno donde se despliega solo el backend contra un Postgres vacío) no intenta recrear tablas ya
+  existentes: ambos caminos (SQL directo o TypeORM) son compatibles y no colisionan.
+- **`02. backend`** espera activamente (TCP polling) a que PostgreSQL esté disponible antes de aplicar
+  migraciones y arrancar, para tolerar que las capas se desplieguen en cualquier orden.
+- **`01. frontend`** se sirve como estáticos vía nginx, que además actúa de reverse proxy de `/api/*` y
+  `/health` hacia el contenedor del backend (por nombre, en la red compartida), evitando problemas de CORS
+  en el navegador.
+- Las tres capas se conectan mediante una red Docker (`ligo-network`) creada automáticamente por los
+  propios scripts `deploy.bat` si no existe, simulando el patrón de despliegue independiente por
+  microservicio (cada capa con su propio ciclo de compilación/despliegue) sin acoplar sus pipelines.

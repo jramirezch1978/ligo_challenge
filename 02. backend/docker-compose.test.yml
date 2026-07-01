@@ -1,6 +1,6 @@
 services:
   postgres-test:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: ligo-wallet-postgres-test
     environment:
       POSTGRES_USER: ligo_test

@@ -1,144 +1,108 @@
-# Wallet Transaction Service — Ligo Backend Senior Technical Challenge
+# Ligo — Wallet Transaction Service
 
-Microservicio backend (Node.js 20 + TypeScript + NestJS + PostgreSQL) para gestionar operaciones de una
-billetera digital regulada: consulta de saldo, movimientos paginados, débitos/créditos, transferencias
-entre wallets y reversas, con idempotencia, atomicidad transaccional y auditoría técnica.
+Solución al *Backend Senior NodeJS/TypeScript - Ligo Challenge*: un microservicio de billetera digital
+regulada (débitos, créditos, transferencias, reversas, idempotencia, atomicidad y auditoría), acompañado
+de un frontend de demostración y de los scripts de base de datos para desplegar cada capa de forma
+independiente en Docker local.
 
-## Stack técnico
+## Estructura del repositorio
 
-- **Node.js 20** + **TypeScript** (strict)
-- **NestJS 10** (arquitectura modular, Guards, Pipes, Interceptors, Filters)
-- **PostgreSQL 16** + **TypeORM** (migraciones versionadas, sin `synchronize`)
-- **Docker Compose** (app + base de datos, un solo comando)
-- **JWT** (login simulado) + `class-validator`
-- **Swagger / OpenAPI** en `/docs`
-- **Jest** + **Supertest** (unitarios + integración contra PostgreSQL real)
+```
+01. frontend/    React + TypeScript + Vite — SPA que consume la API (login, saldo, movimientos, operaciones)
+02. backend/     Node.js 20 + TypeScript + NestJS + TypeORM — el microservicio del challenge
+03. database/    Scripts SQL (PostgreSQL 17) — esquema + datos semilla, independientes del backend
+docs/            Arquitectura y declaración de uso de IA
+postman/         Colección Postman de la API
+```
 
-## Ejecución con un solo comando
+Cada capa es autocontenida: tiene su propio código fuente, `Dockerfile` (cuando aplica) y sus propios
+`build.bat` (compilar) y `deploy.bat` (desplegar en Docker local). El detalle de cada una está en su
+propio README:
 
-Requisitos: Docker + Docker Compose.
+- [`01. frontend/README.md`](<01. frontend/README.md>)
+- [`02. backend/README.md`](<02. backend/README.md>)
+- [`03. database/`](<03. database>) (ver más abajo)
+
+## Despliegue local (orden recomendado)
+
+Requisito: Docker Desktop corriendo. Todas las capas se conectan entre sí mediante una red Docker
+compartida llamada `ligo-network`, que los propios scripts crean si no existe.
+
+```bat
+rem 1) Base de datos (PostgreSQL 17 + schema + seed)
+cd "03. database"
+build.bat
+deploy.bat
+
+rem 2) Backend (API NestJS)
+cd "..\02. backend"
+build.bat
+deploy.bat
+
+rem 3) Frontend (SPA servida por nginx)
+cd "..\01. frontend"
+build.bat
+deploy.bat
+```
+
+Al finalizar:
+
+| Capa | URL |
+|---|---|
+| Frontend | http://localhost:8080 |
+| Backend API | http://localhost:3000/api |
+| Backend Swagger | http://localhost:3000/docs |
+| Backend health | http://localhost:3000/health |
+| PostgreSQL | localhost:5434 (`wallet_service` / usuario `ligo`) |
+
+Credenciales de demo (login): `senior.backend` / `Password123`.
+
+> `build.bat` compila cada proyecto (instala dependencias y genera el artefacto: `dist/` en backend y
+> frontend). `deploy.bat` construye la imagen Docker correspondiente y levanta el contenedor en la red
+> `ligo-network`. Se pueden ejecutar de forma independiente y en cualquier orden salvo por las
+> dependencias de red en tiempo de ejecución (el backend espera activamente a PostgreSQL antes de
+> arrancar; el frontend hace de reverse proxy hacia el backend).
+
+## 03. database
+
+Contiene los scripts SQL para recrear el esquema completo (`wallets`, `transactions`, `movements`,
+`idempotency_keys`, `audit_logs`) y los datos semilla, pensados para ejecutarse automáticamente al
+iniciar un contenedor oficial `postgres:17` (montados en `docker-entrypoint-initdb.d`):
+
+```
+03. database/
+  init/
+    001_schema.sql   Tipos, tablas, índices y foreign keys
+    002_seed.sql     Wallets de demo (wal_001..wal_004)
+  build.bat          Descarga la imagen postgres:17 y valida los scripts
+  deploy.bat         Crea la red/volumen y levanta el contenedor (usar --reset para recrear desde cero)
+```
+
+El esquema es equivalente al generado por las migraciones de TypeORM del backend; el script además
+pre-marca esas migraciones como aplicadas, de modo que ambos mecanismos (SQL directo o `npm run
+migration:run` del backend) son compatibles entre sí sin duplicar ni chocar la creación de tablas.
+
+## Reglas de negocio implementadas (resumen)
+
+- Solo wallets `ACTIVE` pueden operar; no se permite saldo negativo ni operar entre monedas distintas.
+- Montos siempre como `string` decimal (`decimal.js` + `numeric(18,2)`), nunca `float`.
+- Operaciones críticas (débito, crédito, transferencia, reversa) atómicas, con bloqueo pesimista de filas
+  y orden determinístico de bloqueo en transferencias (evita deadlocks).
+- `Idempotency-Key` obligatorio en operaciones críticas (mismo key + mismo payload ⇒ misma respuesta sin
+  reprocesar; mismo key + payload distinto ⇒ `409`; concurrencia con el mismo key ⇒ `409`).
+- Una transacción reversada no puede reversarse de nuevo; una reversa no puede reversarse.
+- Toda operación crítica queda registrada en `audit_logs`.
+
+Detalle completo de arquitectura y decisiones de diseño: [`docs/architecture.md`](docs/architecture.md).
+
+## Testing (backend)
 
 ```bash
-docker compose up --build
-```
-
-Esto levanta PostgreSQL, ejecuta las migraciones (schema + seed de wallets demo) y arranca la API en
-`http://localhost:3000`. Documentación interactiva en **http://localhost:3000/docs**.
-
-> Los puertos publicados en el host son `3000` (API) y `5434` (Postgres, para no chocar con otra instancia
-> local en `5432`). Se pueden sobrescribir con las variables `PORT` y `DATABASE_PORT` en un archivo `.env`
-> en la raíz del proyecto (ver `.env.example`).
-
-Para detener y limpiar:
-
-```bash
-docker compose down          # detiene los contenedores
-docker compose down -v       # además borra el volumen de datos de Postgres
-```
-
-## Ejecución en local (sin Docker para la app)
-
-```bash
-npm install
-cp .env.example .env         # ajustar si es necesario
-docker compose up -d postgres   # solo la base de datos
-npm run migration:run        # aplica schema + seed
-npm run start:dev            # http://localhost:3000
-```
-
-## Wallets precargadas (seed)
-
-| walletId  | moneda | saldo inicial | estado   |
-|-----------|--------|----------------|----------|
-| `wal_001` | PEN    | 1500.00        | ACTIVE   |
-| `wal_002` | PEN    | 500.00         | ACTIVE   |
-| `wal_003` | USD    | 200.00         | ACTIVE   |
-| `wal_004` | PEN    | 300.00         | BLOCKED  |
-
-## Autenticación
-
-```
-POST /api/auth/login
-{ "username": "senior.backend", "password": "Password123" }
-```
-
-Devuelve `{ "token": "...", "expiresIn": 3600 }`. Usar el token como `Authorization: Bearer <token>`
-en el resto de endpoints (todos protegidos salvo `/auth/login`, `/health`, `/health/ready` y `/docs`).
-
-## Endpoints principales
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | `/api/auth/login` | Login simulado, emite JWT |
-| GET | `/api/wallets/:walletId/balance` | Saldo disponible |
-| GET | `/api/wallets/:walletId/movements` | Movimientos paginados (`type`, `status`, `page`, `pageSize`) |
-| POST | `/api/transactions` | Débito o crédito atómico (`Idempotency-Key` obligatorio) |
-| POST | `/api/transactions/transfer` | Transferencia entre wallets (`Idempotency-Key` obligatorio) |
-| POST | `/api/transactions/:id/reversal` | Reversa única de una transacción (`Idempotency-Key` obligatorio) |
-| GET | `/api/transactions/:id` | Estado de una transacción |
-| GET | `/health` | Liveness |
-| GET | `/health/ready` | Readiness (verifica conexión a PostgreSQL) |
-
-Contrato completo, ejemplos y códigos de error: ver Swagger en `/docs` y la colección Postman en
-[`postman/Ligo-Wallet-Service.postman_collection.json`](postman/Ligo-Wallet-Service.postman_collection.json).
-
-## Reglas de negocio implementadas
-
-- Solo wallets `ACTIVE` pueden operar (débito, crédito, transferencia, reversa).
-- No se permite saldo negativo (validado antes de aplicar cualquier débito).
-- No se permite operar entre wallets con monedas distintas.
-- Los montos se representan **siempre** como `string` decimal (nunca `float`); la aritmética usa
-  `decimal.js` y la persistencia usa columnas `numeric(18,2)`.
-- Toda operación crítica (débito, crédito, transferencia, reversa) es **atómica**: se ejecuta dentro de
-  una única transacción de base de datos con `ROLLBACK` automático ante cualquier fallo.
-- Concurrencia controlada con bloqueo pesimista de filas (`SELECT ... FOR UPDATE`); en transferencias,
-  ambos wallets se bloquean en orden determinístico para evitar deadlocks.
-- `Idempotency-Key` obligatorio en operaciones críticas: mismo key + mismo payload ⇒ misma respuesta
-  (sin reprocesar); mismo key + payload distinto ⇒ `409 Conflict`; petición concurrente con el mismo key
-  ⇒ `409 Conflict`.
-- Una transacción reversada no puede volver a reversarse (`409`); una reversa no puede reversarse (`422`).
-- Toda operación crítica queda registrada en `audit_logs` (acción, entidad, quién, metadata).
-
-Detalle de arquitectura y decisiones de diseño: [`docs/architecture.md`](docs/architecture.md).
-
-## Testing
-
-```bash
-npm test                 # unitarios (reglas de negocio, idempotencia, auth, money util)
-npm run test:cov         # unitarios con cobertura
-
-docker compose -f docker-compose.test.yml up -d   # PostgreSQL efímero para integración (puerto 5435)
+cd "02. backend"
+npm test                                           # unitarios
+docker compose -f docker-compose.test.yml up -d    # PostgreSQL 17 efímero para integración
 npm run test:e2e                                   # integración contra PostgreSQL real
 docker compose -f docker-compose.test.yml down     # limpieza
-```
-
-Los tests de integración cubren, contra una base de datos real: login, balance, movimientos paginados,
-débito/crédito exitoso, fondos insuficientes, wallet bloqueada/inexistente, moneda distinta, transferencia
-(éxito y bordes), reversa (débito y transferencia), doble reversa, reversa de una reversa, e idempotencia
-(replay exacto y conflicto 409). Los tests unitarios cubren la lógica de negocio de `TransactionsService`
-de forma aislada (sin base de datos), `IdempotencyService`, `AuthService` y la utilidad `Money`.
-
-## Variables de entorno
-
-Ver [`.env.example`](.env.example). Los valores por defecto usados por `docker-compose.yml` no requieren
-crear un `.env` para el caso de uso estándar.
-
-## Estructura del proyecto
-
-```
-src/
-  auth/            Login simulado + JWT + guard global
-  wallets/         Saldo y movimientos
-  transactions/    Débito/crédito/transferencia/reversa (núcleo transaccional)
-  idempotency/     Servicio de idempotencia (Idempotency-Key)
-  audit/           Auditoría técnica
-  health/          Liveness / readiness
-  common/          DTOs base, excepciones de dominio, filtros, interceptors, utilidades (Money, ids)
-  database/        DataSource de TypeORM + migraciones + seed
-test/
-  integration/     Tests e2e contra PostgreSQL real (Jest + Supertest)
-docs/              Arquitectura y declaración de uso de IA
-postman/           Colección Postman
 ```
 
 ## Declaración de uso de IA

@@ -27,3 +27,15 @@
   - **Idempotencia mal diseñada** (el riesgo más crítico en un servicio financiero): mitigado colocando el registro de la clave dentro de la misma transacción atómica que el efecto de negocio, y cubriéndolo con tests que verifican tanto el *replay* exacto como el conflicto por payload distinto y la ejecución concurrente.
   - **Precisión numérica**: mitigado prohibiendo `float` en todo el dominio (uso exclusivo de `string` + `decimal.js` + columnas `numeric` en PostgreSQL).
   - **Exposición de información sensible en logs/errores**: mitigado con un filtro global que nunca expone stack traces al cliente y un interceptor de logging que redacta campos sensibles.
+
+- **Iteración posterior — reorganización en 3 capas + frontend**:
+  A petición del usuario, también usé el agente para reorganizar el repositorio en `01. frontend`,
+  `02. backend` y `03. database` (cada una con `build.bat`/`deploy.bat` propios), extraer el esquema de
+  TypeORM a scripts SQL planos ejecutables por un contenedor `postgres:17` oficial, y generar un frontend
+  de demostración (React + TypeScript + Vite) que consume la API existente. Validé manualmente que:
+  - El backend siguiera compilando (`npm run build`) tras mover todos los archivos de carpeta.
+  - El frontend compilara sin errores de TypeScript (`tsc -b && vite build`).
+  - Los scripts SQL extraídos fueran equivalentes a las migraciones de TypeORM ya probadas, y que
+    pre-marcar esas migraciones como aplicadas evitara colisiones si el backend llega a ejecutarlas.
+  - No dupliqué lógica de negocio en el frontend: es un cliente delgado sobre la API ya validada por los
+    tests de integración del backend.
