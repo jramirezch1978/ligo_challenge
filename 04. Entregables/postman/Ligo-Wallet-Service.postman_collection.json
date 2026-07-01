@@ -201,6 +201,25 @@
           }
         },
         {
+          "name": "Debit another owner's wallet with customer token (expect 403)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId2}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
           "name": "Debit on unknown wallet (404)",
           "request": {
             "method": "POST",
