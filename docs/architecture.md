@@ -94,10 +94,20 @@ NestJS aporta una arquitectura modular por capas (Controller → Service → Rep
 ### 8. Despliegue en 3 capas independientes
 
 El repositorio está organizado en `01. frontend`, `02. backend` y `03. database`, cada una con su propio
-`build.bat` (compilar / construir la imagen local) y `deploy.bat` (desplegar en Docker local), sin
-depender de un único `docker-compose` orquestador. Un `build.bat`/`deploy.bat` en la raíz del repositorio
-actúa como dispatcher unificado (`deploy.bat database|backend|frontend|all`), delegando en el script de
-la carpeta correspondiente:
+`build.bat` y `deploy.bat`, sin depender de un único `docker-compose` orquestador. Un `build.bat`/
+`deploy.bat` en la raíz del repositorio actúa como dispatcher unificado
+(`deploy.bat database|backend|frontend|all`), delegando en el script de la carpeta correspondiente.
+
+Separación estricta de responsabilidades entre ambos scripts, en las tres capas:
+
+- **`build.bat`** compila **dentro de Docker** (build multi-stage del `Dockerfile` de cada capa: etapa
+  `builder` con `npm ci` + compilación) y produce la imagen local lista para desplegar. No depende del
+  Node/npm del host, garantizando que la compilación siempre ocurre en el mismo entorno que correrá en
+  producción. Las imágenes finales (`production`) **no contienen código fuente**, solo los artefactos
+  compilados (`dist/` en el backend, estáticos en el frontend).
+- **`deploy.bat`** **solo despliega**: crea la red, el contenedor y lo publica, pero nunca reconstruye a
+  partir del código fuente. Si la imagen todavía no existe la construye una única vez delegando en
+  `build.bat`.
 
 ```mermaid
 flowchart LR

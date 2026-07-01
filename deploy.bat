@@ -15,8 +15,11 @@ rem                           contenedor (requiere que "backend" ya este arriba)
 rem    deploy.bat all         Despliega los tres, en orden: database, backend,
 rem                           frontend
 rem
-rem  Las tres capas crean su propia imagen Docker local y se conectan entre si
-rem  mediante la red compartida "ligo-network".
+rem  deploy.bat SOLO despliega: no compila ni construye imagenes a partir del
+rem  codigo fuente (eso es responsabilidad de build.bat). Si la imagen de una
+rem  capa todavia no existe, la construye una unica vez antes de desplegarla.
+rem  Las tres capas se conectan entre si mediante la red compartida
+rem  "ligo-network".
 rem =============================================================================
 
 set ROOT=%~dp0

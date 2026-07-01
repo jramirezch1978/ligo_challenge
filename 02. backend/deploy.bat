@@ -3,8 +3,10 @@ setlocal
 
 rem =============================================================================
 rem  Wallet Transaction Service - Backend (NestJS + TypeScript)
-rem  deploy.bat: construye la imagen Docker del backend y levanta el contenedor,
-rem  conectado a la misma red que la base de datos (ver 03. database\deploy.bat).
+rem  deploy.bat: SOLO despliega. No compila ni construye la imagen a partir del
+rem  codigo fuente (eso lo hace build.bat, dentro de Docker); si la imagen
+rem  "ligo-wallet-backend:latest" no existe todavia, la construye una unica vez
+rem  llamando a build.bat antes de desplegar.
 rem
 rem  Requisito: el contenedor "ligo-wallet-postgres" debe estar corriendo
 rem  (ejecutar primero 03. database\deploy.bat).
@@ -28,17 +30,18 @@ set AUTH_MOCK_PASSWORD=Password123
 
 cd /d "%~dp0"
 
-echo [1/5] Verificando red Docker "%NETWORK_NAME%" ...
+echo [1/5] Verificando imagen local %IMAGE_NAME% ...
+docker image inspect %IMAGE_NAME% >nul 2>&1
+if errorlevel 1 (
+  echo Imagen no encontrada, compilandola primero (build.bat) ...
+  call build.bat
+  if errorlevel 1 exit /b 1
+)
+
+echo [2/5] Verificando red Docker "%NETWORK_NAME%" ...
 docker network inspect %NETWORK_NAME% >nul 2>&1
 if errorlevel 1 (
   docker network create %NETWORK_NAME%
-)
-
-echo [2/5] Construyendo imagen %IMAGE_NAME% ...
-docker build -t %IMAGE_NAME% .
-if errorlevel 1 (
-  echo [ERROR] Fallo la construccion de la imagen del backend.
-  exit /b 1
 )
 
 echo [3/5] Eliminando contenedor previo (si existe) ...

@@ -22,11 +22,13 @@ entre wallets y reversas, con idempotencia, atomicidad transaccional y auditorí
 
 ```bat
 cd "02. backend"
-build.bat     rem npm install + compilación TypeScript -> dist/
-deploy.bat    rem docker build de la imagen + docker run del contenedor
+build.bat     rem compila DENTRO de Docker (multi-stage) -> imagen ligo-wallet-backend:latest
+deploy.bat    rem SOLO despliega esa imagen (no recompila ni toca el codigo fuente)
 ```
 
-`deploy.bat` requiere que el contenedor de base de datos ya esté corriendo (ver
+`build.bat` compila usando el `Dockerfile` (etapa `builder`: `npm ci` + `nest build`), sin depender del
+Node/npm instalados en el host, y produce la imagen final de producción que **no contiene código fuente**
+(solo `dist/`). `deploy.bat` requiere que el contenedor de base de datos ya esté corriendo (ver
 [`../03. database`](../03.%20database)) y conecta el contenedor del backend a la misma red Docker
 (`ligo-network`) para poder resolverlo por nombre (`ligo-wallet-postgres`). Publica la API en
 `http://localhost:3000` (`/docs` para Swagger, `/health` para liveness).

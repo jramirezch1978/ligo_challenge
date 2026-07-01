@@ -4,11 +4,18 @@ setlocal
 rem =============================================================================
 rem  Ligo - Wallet Transaction Service - build.bat unificado
 rem
+rem  Todas las capas compilan DENTRO de Docker (build multi-stage de su
+rem  Dockerfile) y producen su imagen local lista para desplegar. El codigo
+rem  fuente nunca sale de la etapa de build: las imagenes finales solo
+rem  contienen los artefactos compilados (dist/ o los estaticos de nginx).
+rem
 rem  Uso:
 rem    build.bat database    Construye la imagen local de PostgreSQL 17
 rem                          (esquema + seed horneados en la imagen)
-rem    build.bat backend     Instala dependencias y compila el backend (dist/)
-rem    build.bat frontend    Instala dependencias y compila el frontend (dist/)
+rem    build.bat backend     Compila el backend dentro de Docker -> imagen
+rem                          ligo-wallet-backend:latest
+rem    build.bat frontend    Compila el frontend dentro de Docker -> imagen
+rem                          ligo-wallet-frontend:latest
 rem    build.bat all         Ejecuta los tres, en orden: database, backend, frontend
 rem =============================================================================
 

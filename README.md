@@ -17,9 +17,16 @@ build.bat        Dispatcher unificado: build.bat [database|backend|frontend|all]
 deploy.bat       Dispatcher unificado: deploy.bat [database|backend|frontend|all]
 ```
 
-Cada capa es autocontenida: tiene su propio código fuente, `Dockerfile` y sus propios `build.bat`
-(compilar / construir la imagen local) y `deploy.bat` (desplegar en Docker local). El detalle de cada
-una está en su propio README:
+Cada capa es autocontenida: tiene su propio código fuente, `Dockerfile` y sus propios `build.bat` y
+`deploy.bat`, con una separación estricta de responsabilidades:
+
+- **`build.bat`** compila **dentro de Docker** (build multi-stage del `Dockerfile` de cada capa) y
+  produce la imagen local lista para desplegar. No depende del Node/npm instalados en el host.
+- **`deploy.bat`** **solo despliega**: nunca reconstruye a partir del código fuente. Si la imagen todavía
+  no existe la construye una única vez (llamando a `build.bat`), pero su responsabilidad es crear la red,
+  el contenedor y publicarlo — no compilar código.
+
+El detalle de cada capa está en su propio README:
 
 - [`01. frontend/README.md`](<01. frontend/README.md>)
 - [`02. backend/README.md`](<02. backend/README.md>)
@@ -38,13 +45,15 @@ rem    contenedor y el volumen previos y reconstruye todo desde cero.
 build.bat database
 deploy.bat database
 
-rem 2) Backend (API NestJS): build compila, deploy construye la imagen y
-rem    despliega el contenedor (requiere la base de datos ya desplegada).
+rem 2) Backend (API NestJS): build compila DENTRO de Docker -> imagen
+rem    ligo-wallet-backend:latest; deploy solo despliega esa imagen
+rem    (requiere la base de datos ya desplegada).
 build.bat backend
 deploy.bat backend
 
-rem 3) Frontend (SPA servida por nginx): build compila, deploy construye la
-rem    imagen y despliega el contenedor (requiere el backend ya desplegado).
+rem 3) Frontend (SPA servida por nginx): build compila DENTRO de Docker ->
+rem    imagen ligo-wallet-frontend:latest; deploy solo despliega esa imagen
+rem    (requiere el backend ya desplegado).
 build.bat frontend
 deploy.bat frontend
 
