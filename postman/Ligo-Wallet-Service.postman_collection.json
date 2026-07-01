@@ -1,0 +1,302 @@
+{
+  "info": {
+    "name": "Ligo Wallet Transaction Service",
+    "description": "Colección Postman para el Wallet Transaction Service (Ligo - Backend Senior Technical Challenge).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "token", "value": "" },
+    { "key": "walletId1", "value": "wal_001" },
+    { "key": "walletId2", "value": "wal_002" },
+    { "key": "blockedWalletId", "value": "wal_004" },
+    { "key": "transactionId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('token', body.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"senior.backend\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wallets",
+      "item": [
+        {
+          "name": "Get balance",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/{{walletId1}}/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "{{walletId1}}", "balance"]
+            }
+          }
+        },
+        {
+          "name": "Get movements (paginated)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/{{walletId1}}/movements?type=ALL&status=COMPLETED&page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "{{walletId1}}", "movements"],
+              "query": [
+                { "key": "type", "value": "ALL" },
+                { "key": "status", "value": "COMPLETED" },
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create debit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('transactionId', body.transactionId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"25.50\",\n  \"currency\": \"PEN\",\n  \"description\": \"Pago QR comercio\",\n  \"externalReference\": \"qr_789456\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Create credit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": \"50.00\",\n  \"currency\": \"PEN\",\n  \"description\": \"Abono manual\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Debit with insufficient funds (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"999999.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Debit on blocked wallet (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{blockedWalletId}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Debit on unknown wallet (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"wal_does_not_exist\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Repeat with same Idempotency-Key (replay)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"5.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Same key, different body (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"999.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "Transfer between wallets",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{walletId1}}\",\n  \"targetWalletId\": \"{{walletId2}}\",\n  \"amount\": \"100.00\",\n  \"currency\": \"PEN\",\n  \"description\": \"Transferencia entre usuarios\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "Reverse a transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Merchant refund / reversal\",\n  \"externalReference\": \"rev_123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}/reversal",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}", "reversal"]
+            }
+          }
+        },
+        {
+          "name": "Reverse the same transaction again (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Duplicate reversal attempt\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}/reversal",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}", "reversal"]
+            }
+          }
+        },
+        {
+          "name": "Get transaction status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "http://localhost:3000/health", "host": ["http://localhost:3000"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:3000/health/ready",
+              "host": ["http://localhost:3000"],
+              "path": ["health", "ready"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: ligo-wallet-postgres-test
+    environment:
+      POSTGRES_USER: ligo_test
+      POSTGRES_PASSWORD: ligo_test_password
+      POSTGRES_DB: wallet_service_test
+    ports:
+      - '5435:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ligo_test -d wallet_service_test']
+      interval: 3s
+      timeout: 3s
+      retries: 15
