@@ -94,8 +94,10 @@ NestJS aporta una arquitectura modular por capas (Controller → Service → Rep
 ### 8. Despliegue en 3 capas independientes
 
 El repositorio está organizado en `01. frontend`, `02. backend` y `03. database`, cada una con su propio
-`build.bat` (compilar) y `deploy.bat` (desplegar en Docker local), sin depender de un único
-`docker-compose` orquestador:
+`build.bat` (compilar / construir la imagen local) y `deploy.bat` (desplegar en Docker local), sin
+depender de un único `docker-compose` orquestador. Un `build.bat`/`deploy.bat` en la raíz del repositorio
+actúa como dispatcher unificado (`deploy.bat database|backend|frontend|all`), delegando en el script de
+la carpeta correspondiente:
 
 ```mermaid
 flowchart LR
@@ -108,12 +110,17 @@ flowchart LR
     end
 ```
 
-- **`03. database`** es la fuente de verdad del esquema: un contenedor `postgres:17` oficial con los
-  scripts `init/001_schema.sql` y `init/002_seed.sql` montados en `docker-entrypoint-initdb.d`. Esos
-  scripts también pre-insertan las migraciones de TypeORM en la tabla `migrations`, de modo que si el
-  backend llega a ejecutar sus propias migraciones contra esa misma base de datos (por ejemplo en un
-  entorno donde se despliega solo el backend contra un Postgres vacío) no intenta recrear tablas ya
-  existentes: ambos caminos (SQL directo o TypeORM) son compatibles y no colisionan.
+- **`03. database`** es la fuente de verdad del esquema: una imagen Docker propia
+  (`ligo-wallet-postgres:17`, ver `03. database/Dockerfile`) que extiende `postgres:17` horneando los
+  scripts `init/001_schema.sql` y `init/002_seed.sql` dentro de `docker-entrypoint-initdb.d` en tiempo de
+  build (no por bind-mount en tiempo de despliegue), igual que el backend y el frontend construyen su
+  propia imagen local. Esos scripts también pre-insertan las migraciones de TypeORM en la tabla
+  `migrations`, de modo que si el backend llega a ejecutar sus propias migraciones contra esa misma base
+  de datos (por ejemplo en un entorno donde se despliega solo el backend contra un Postgres vacío) no
+  intenta recrear tablas ya existentes: ambos caminos (SQL directo o TypeORM) son compatibles y no
+  colisionan. `deploy.bat database` es **idempotente**: en cada ejecución elimina el contenedor y el
+  volumen de datos previos y levanta uno nuevo desde la imagen, garantizando siempre el mismo estado
+  inicial (esquema + seed).
 - **`02. backend`** espera activamente (TCP polling) a que PostgreSQL esté disponible antes de aplicar
   migraciones y arrancar, para tolerar que las capas se desplieguen en cualquier orden.
 - **`01. frontend`** se sirve como estáticos vía nginx, que además actúa de reverse proxy de `/api/*` y
