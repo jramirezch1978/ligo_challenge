@@ -11,7 +11,10 @@ consulta de estado de una transacción.
 
 - **React 18** + **TypeScript** (strict)
 - **Vite 5** (dev server + build)
-- CSS propio (sin dependencias de UI), diseño responsive
+- CSS propio (sin dependencias de UI), **totalmente responsive** (mobile-first, breakpoints en 420px /
+  480px / 640px / 900px): tablas con scroll horizontal, tabs deslizables, formularios en 1 o 2 columnas
+  según ancho, botones con área táctil mínima de 44px en pantallas táctiles, header y toasts adaptados
+  a móvil
 - **nginx** (imagen de producción) como servidor de estáticos y reverse proxy hacia el backend
 
 ## Compilar y desplegar

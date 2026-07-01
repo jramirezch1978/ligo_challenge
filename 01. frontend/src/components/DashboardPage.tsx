@@ -89,7 +89,9 @@ export function DashboardPage() {
       <header className="topbar">
         <div className="topbar__brand">
           <span className="brand-mark">L</span>
-          <span>Ligo Wallet Transaction Service</span>
+          <span>
+            Ligo Wallet<span className="topbar__brand-suffix"> Transaction Service</span>
+          </span>
         </div>
         <div className="topbar__user">
           <span>{username}</span>
