@@ -31,7 +31,7 @@ contiene código fuente** (solo los estáticos compilados). `deploy.bat` requier
 backend (`ligo-wallet-backend`) ya esté corriendo (ver [`../02. backend`](../02.%20backend)) y conecta el
 contenedor del frontend a la misma red Docker (`ligo-network`). nginx hace de reverse proxy de `/api/*` y
 `/health` hacia `ligo-wallet-backend:3000`, por lo que el navegador solo ve rutas relativas (sin
-problemas de CORS). Publica la SPA en `http://localhost:8080`.
+problemas de CORS). Publica la SPA en `http://localhost:8090`.
 
 ## Desarrollo local (sin Docker)
 

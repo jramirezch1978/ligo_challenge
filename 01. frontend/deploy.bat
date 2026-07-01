@@ -15,14 +15,14 @@ rem ============================================================================
 set NETWORK_NAME=ligo-network
 set CONTAINER_NAME=ligo-wallet-frontend
 set IMAGE_NAME=ligo-wallet-frontend:latest
-set HOST_PORT=8080
+set HOST_PORT=8090
 
 cd /d "%~dp0"
 
 echo [1/4] Verificando imagen local %IMAGE_NAME% ...
 docker image inspect %IMAGE_NAME% >nul 2>&1
 if errorlevel 1 (
-  echo Imagen no encontrada, compilandola primero (build.bat) ...
+  echo Imagen no encontrada, compilandola primero con build.bat ...
   call build.bat
   if errorlevel 1 exit /b 1
 )

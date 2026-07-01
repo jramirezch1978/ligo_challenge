@@ -17,6 +17,14 @@ FROM node:20-alpine AS production
 ENV NODE_ENV=production
 WORKDIR /usr/src/app
 
+# Zona horaria fija: America/Lima (UTC-5). Alpine no trae tzdata por defecto,
+# por lo que se instala explicitamente. Esto hace que Node (Date, logs) y las
+# librerias de fecha usen la hora de Peru en lugar de UTC/hora del host.
+ENV TZ=America/Lima
+RUN apk add --no-cache tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 

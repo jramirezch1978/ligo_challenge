@@ -139,3 +139,35 @@ flowchart LR
 - Las tres capas se conectan mediante una red Docker (`ligo-network`) creada automáticamente por los
   propios scripts `deploy.bat` si no existe, simulando el patrón de despliegue independiente por
   microservicio (cada capa con su propio ciclo de compilación/despliegue) sin acoplar sus pipelines.
+
+### 9. Zona horaria y sincronización horaria (America/Lima)
+
+Tanto la base de datos como el backend fijan explícitamente su zona horaria en **America/Lima (UTC-5)**,
+para que `now()`, `CURRENT_DATE`, los timestamps de auditoría y los logs reflejen la hora real de Perú en
+lugar de UTC o la hora del host:
+
+- **`03. database`**: la imagen fija `TZ=America/Lima` a nivel de sistema operativo, y
+  `03. database/deploy.bat` arranca PostgreSQL con `-c timezone=America/Lima -c log_timezone=America/Lima`,
+  por lo que el GUC `timezone` del servidor (no solo del cliente) queda fijado independientemente de quién
+  se conecte.
+- **`02. backend`**: la imagen instala `tzdata` (Alpine no la trae por defecto) y fija `TZ=America/Lima`
+  tanto en build como en runtime (`deploy.bat` inyecta `-e TZ=America/Lima`), de modo que `Date`, los logs
+  de Nest y cualquier formateo de fecha en Node usan la hora de Lima.
+
+**Sincronización horaria activa (NTP):** los contenedores Docker comparten el reloj del kernel del
+host/VM, por lo que no tienen un reloj de hardware propio; para blindar a la base de datos contra un
+eventual *drift* del reloj (por ejemplo tras suspender/reanudar la máquina o la VM de Docker Desktop), la
+imagen `03. database` instala **chrony** y lo arranca desde
+`03. database/docker-entrypoint-wrapper.sh` (que envuelve al entrypoint oficial de PostgreSQL):
+
+1. Hace un ajuste inmediato del reloj (`chronyd -q`) contra servidores NTP públicos antes de iniciar
+   PostgreSQL.
+2. Deja `chronyd` corriendo en segundo plano durante toda la vida del contenedor para mantenerlo
+   sincronizado ("siempre al día").
+3. Requiere el flag `--cap-add=SYS_TIME` en `docker run` (ya incluido en `deploy.bat`); si el host no lo
+   otorga, ambos pasos se degradan de forma segura (solo advierten) sin impedir el arranque de la base de
+   datos.
+
+Verificación rápida ya validada en este entorno: `docker exec ligo-wallet-postgres chronyc tracking` /
+`chronyc sources` muestran sincronización activa contra `pool.ntp.org`, y `SHOW timezone;` /
+`SELECT now();` devuelven `America/Lima` con el offset `-05` correcto.

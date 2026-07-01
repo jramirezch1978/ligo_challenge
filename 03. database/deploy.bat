@@ -8,6 +8,12 @@ rem  el volumen de datos existentes, y levanta uno nuevo desde la imagen local
 rem  "ligo-wallet-postgres:17" (construida por build.bat), que ya trae el
 rem  esquema y el seed horneados en /docker-entrypoint-initdb.d. El resultado
 rem  es siempre el mismo: base de datos limpia con la data inicial cargada.
+rem
+rem  Zona horaria: America/Lima, fijada tanto a nivel de SO del contenedor
+rem  (TZ) como del propio PostgreSQL (-c timezone / -c log_timezone), para que
+rem  now(), CURRENT_DATE y los timestamps de logs reflejen la hora de Peru.
+rem  --cap-add=SYS_TIME habilita a chrony (dentro de la imagen) para mantener
+rem  el reloj del contenedor sincronizado activamente contra servidores NTP.
 rem =============================================================================
 
 set POSTGRES_USER=ligo
@@ -18,6 +24,7 @@ set NETWORK_NAME=ligo-network
 set CONTAINER_NAME=ligo-wallet-postgres
 set VOLUME_NAME=ligo-wallet-pgdata
 set IMAGE_NAME=ligo-wallet-postgres:17
+set TIMEZONE=America/Lima
 
 cd /d "%~dp0"
 
@@ -43,13 +50,16 @@ echo [4/6] Creando contenedor %CONTAINER_NAME% (%IMAGE_NAME%) ...
 docker run -d ^
   --name %CONTAINER_NAME% ^
   --network %NETWORK_NAME% ^
+  --cap-add=SYS_TIME ^
+  -e TZ=%TIMEZONE% ^
   -e POSTGRES_USER=%POSTGRES_USER% ^
   -e POSTGRES_PASSWORD=%POSTGRES_PASSWORD% ^
   -e POSTGRES_DB=%POSTGRES_DB% ^
   -p %HOST_PORT%:5432 ^
   -v %VOLUME_NAME%:/var/lib/postgresql/data ^
   --restart unless-stopped ^
-  %IMAGE_NAME%
+  %IMAGE_NAME% ^
+  postgres -c timezone=%TIMEZONE% -c log_timezone=%TIMEZONE%
 
 if errorlevel 1 (
   echo [ERROR] No se pudo crear el contenedor de PostgreSQL.
@@ -66,7 +76,7 @@ if %RETRIES% leq 0 (
   echo [ERROR] Tiempo de espera agotado esperando a PostgreSQL.
   exit /b 1
 )
-timeout /t 2 >nul
+ping -n 3 127.0.0.1 >nul
 goto wait_loop
 
 :ready
@@ -75,6 +85,7 @@ echo.
 echo   Host (desde tu maquina): localhost:%HOST_PORT%
 echo   Host (desde otros contenedores en "%NETWORK_NAME%"): %CONTAINER_NAME%:5432
 echo   Base de datos: %POSTGRES_DB%   Usuario: %POSTGRES_USER%
+echo   Zona horaria: %TIMEZONE% (sincronizacion NTP activa via chrony)
 echo.
 echo Contenedor: %CONTAINER_NAME%
 

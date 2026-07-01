@@ -78,7 +78,7 @@ Al finalizar:
 
 | Capa | URL |
 |---|---|
-| Frontend | http://localhost:8080 |
+| Frontend | http://localhost:8090 |
 | Backend API | http://localhost:3000/api |
 | Backend Swagger | http://localhost:3000/docs |
 | Backend health | http://localhost:3000/health |

@@ -23,6 +23,8 @@ set DATABASE_USER=ligo
 set DATABASE_PASSWORD=ligo_password
 set DATABASE_NAME=wallet_service
 
+set TIMEZONE=America/Lima
+
 set JWT_SECRET=change-this-super-secret-key-in-production
 set JWT_EXPIRES_IN=3600
 set AUTH_MOCK_USERNAME=senior.backend
@@ -33,7 +35,7 @@ cd /d "%~dp0"
 echo [1/5] Verificando imagen local %IMAGE_NAME% ...
 docker image inspect %IMAGE_NAME% >nul 2>&1
 if errorlevel 1 (
-  echo Imagen no encontrada, compilandola primero (build.bat) ...
+  echo Imagen no encontrada, compilandola primero con build.bat ...
   call build.bat
   if errorlevel 1 exit /b 1
 )
@@ -55,6 +57,7 @@ docker run -d ^
   -e PORT=3000 ^
   -e API_PREFIX=api ^
   -e CORS_ORIGIN=* ^
+  -e TZ=%TIMEZONE% ^
   -e DATABASE_HOST=%DATABASE_HOST% ^
   -e DATABASE_PORT=%DATABASE_PORT% ^
   -e DATABASE_USER=%DATABASE_USER% ^
