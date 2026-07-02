@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../api/client';
-import { ApiError, type BalanceResponse, type MovementsResponse, type MovementTypeFilter, type TransactionStatusFilter } from '../api/types';
+import {
+  ApiError,
+  type BalanceResponse,
+  type MovementsResponse,
+  type MovementTypeFilter,
+  type TransactionStatusFilter,
+  type WalletSummary,
+} from '../api/types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BalanceCard } from './BalanceCard';
@@ -10,10 +17,11 @@ import { OperationsPanel } from './OperationsPanel';
 const PAGE_SIZE = 10;
 
 export function DashboardPage() {
-  const { token, username, logout } = useAuth();
+  const { token, username, logout, isAdmin } = useAuth();
   const { notify } = useToast();
 
-  const [walletId, setWalletId] = useState('wal_001');
+  const [walletOptions, setWalletOptions] = useState<WalletSummary[]>([]);
+  const [walletId, setWalletId] = useState('');
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
@@ -25,6 +33,8 @@ export function DashboardPage() {
 
   const loadBalance = useCallback(
     async (targetWalletId: string) => {
+      if (!targetWalletId) return;
+
       setIsLoadingBalance(true);
       try {
         const response = await apiRequest<BalanceResponse>(
@@ -44,6 +54,8 @@ export function DashboardPage() {
 
   const loadMovements = useCallback(
     async (targetWalletId: string) => {
+      if (!targetWalletId) return;
+
       setIsLoadingMovements(true);
       try {
         const query = new URLSearchParams({
@@ -68,14 +80,35 @@ export function DashboardPage() {
   );
 
   useEffect(() => {
-    loadBalance(walletId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    async function loadAccessibleWallets() {
+      try {
+        const wallets = await apiRequest<WalletSummary[]>('/wallets/list', { token });
+        setWalletOptions(wallets);
+        setWalletId((currentWalletId) => currentWalletId || wallets[0]?.id || '');
+      } catch (error) {
+        setWalletOptions([]);
+        setWalletId('');
+        notify('error', error instanceof ApiError ? error.message : 'No se pudieron cargar las wallets');
+      }
+    }
+
+    loadAccessibleWallets();
+  }, [token, notify]);
 
   useEffect(() => {
+    if (!walletId) return;
+    loadBalance(walletId);
+  }, [walletId, loadBalance]);
+
+  useEffect(() => {
+    if (!walletId) return;
     loadMovements(walletId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeFilter, statusFilter, page]);
+  }, [walletId, loadMovements]);
+
+  function handleWalletChange(nextWalletId: string) {
+    setPage(1);
+    setWalletId(nextWalletId);
+  }
 
   function handleRefreshWallet() {
     setPage(1);
@@ -111,7 +144,9 @@ export function DashboardPage() {
             walletId={walletId}
             balance={balance}
             isLoading={isLoadingBalance}
-            onWalletIdChange={setWalletId}
+            isAdmin={isAdmin}
+            walletOptions={walletOptions}
+            onWalletIdChange={handleWalletChange}
             onRefresh={handleRefreshWallet}
           />
           <OperationsPanel walletId={walletId} onOperationCompleted={handleOperationCompleted} />

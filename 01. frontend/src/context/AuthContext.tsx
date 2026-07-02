@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { apiRequest } from '../api/client';
-import type { LoginResponse } from '../api/types';
+import type { LoginResponse, UserRole } from '../api/types';
+import { parseJwtClaims } from '../utils/jwt';
 
 interface AuthContextValue {
   token: string | null;
   username: string | null;
+  role: UserRole | null;
+  isAdmin: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
@@ -37,9 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsername(null);
   }, []);
 
+  const claims = useMemo(() => (token ? parseJwtClaims(token) : null), [token]);
+  const role = claims?.role ?? null;
+  const isAdmin = role === 'ADMIN';
+
   const value = useMemo<AuthContextValue>(
-    () => ({ token, username, isAuthenticated: Boolean(token), login, logout }),
-    [token, username, login, logout],
+    () => ({ token, username, role, isAdmin, isAuthenticated: Boolean(token), login, logout }),
+    [token, username, role, isAdmin, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

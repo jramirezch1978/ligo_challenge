@@ -79,6 +79,32 @@
       "name": "Wallets",
       "item": [
         {
+          "name": "List accessible wallets (ADMIN)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "list"]
+            }
+          }
+        },
+        {
+          "name": "List accessible wallets (CUSTOMER, own wallets only)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "list"]
+            }
+          }
+        },
+        {
           "name": "Get balance",
           "request": {
             "method": "GET",

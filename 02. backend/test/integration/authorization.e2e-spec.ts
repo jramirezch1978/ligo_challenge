@@ -35,6 +35,49 @@ describe('Wallet ownership authorization (e2e)', () => {
     expect(response.body.token).toEqual(expect.any(String));
   });
 
+  it('allows an ADMIN token to list every wallet', async () => {
+    await createTestWallet(dataSource, { ownerName: 'Someone Else' });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/wallets/list')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.length).toBeGreaterThanOrEqual(2);
+    expect(response.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.any(String),
+          ownerName: expect.any(String),
+          currency: expect.any(String),
+          status: expect.any(String),
+        }),
+      ]),
+    );
+  });
+
+  it('allows a CUSTOMER token to list only wallets they own', async () => {
+    const ownedWallet = await createTestWallet(dataSource, { ownerName: CUSTOMER_OWNER_NAME });
+    await createTestWallet(dataSource, { ownerName: 'Someone Else' });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/wallets/list')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: ownedWallet.id,
+          ownerName: CUSTOMER_OWNER_NAME,
+        }),
+      ]),
+    );
+    expect(response.body.every((wallet: { ownerName: string }) => wallet.ownerName === CUSTOMER_OWNER_NAME)).toBe(
+      true,
+    );
+  });
+
   it('allows an ADMIN token to read the balance of any wallet', async () => {
     const wallet = await createTestWallet(dataSource, { ownerName: 'Someone Else' });
 

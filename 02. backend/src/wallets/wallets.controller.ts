@@ -5,6 +5,7 @@ import { BalanceQueryDto } from './dto/balance-query.dto';
 import { BalanceResponseDto } from './dto/balance-response.dto';
 import { MovementsQueryDto } from './dto/movements-query.dto';
 import { MovementsResponseDto } from './dto/movement-response.dto';
+import { WalletSummaryDto } from './dto/wallet-summary.dto';
 import { CurrentUser } from '@app/common/decorators/current-user.decorator';
 import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 
@@ -23,6 +24,15 @@ import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 @Controller('wallets')
 export class WalletsController {
   constructor(private readonly walletsService: WalletsService) {}
+
+  @Get('list')
+  @ApiOperation({
+    summary: 'List wallets accessible to the authenticated user (all for ADMIN, owned only for CUSTOMER)',
+  })
+  @ApiResponse({ status: 200, type: WalletSummaryDto, isArray: true })
+  listAccessibleWallets(@CurrentUser() user: JwtPayload): Promise<WalletSummaryDto[]> {
+    return this.walletsService.listAccessibleWallets(user);
+  }
 
   @Get('balance')
   @ApiOperation({ summary: 'Get the available balance for a wallet' })

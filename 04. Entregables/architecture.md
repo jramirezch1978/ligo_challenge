@@ -85,6 +85,7 @@ API:
 
 | Verbo | Endpoint | Identificador |
 |---|---|---|
+| `GET` | `/wallets/list` | — (filtra por rol: ADMIN ve todas, CUSTOMER solo las propias) |
 | `GET` | `/wallets/balance?walletId=wal_001` | query param |
 | `GET` | `/wallets/movements?walletId=wal_001&type=&status=&page=&pageSize=` | query param |
 | `POST` | `/transactions` | `walletId` en el body |

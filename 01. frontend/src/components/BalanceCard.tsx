@@ -1,14 +1,31 @@
-import type { BalanceResponse } from '../api/types';
+import type { BalanceResponse, WalletSummary } from '../api/types';
 
 interface Props {
   walletId: string;
   balance: BalanceResponse | null;
   isLoading: boolean;
+  isAdmin: boolean;
+  walletOptions: WalletSummary[];
   onWalletIdChange: (value: string) => void;
   onRefresh: () => void;
 }
 
-export function BalanceCard({ walletId, balance, isLoading, onWalletIdChange, onRefresh }: Props) {
+function formatWalletOption(wallet: WalletSummary): string {
+  const owner = wallet.ownerName ?? 'Sin titular';
+  return `${wallet.id} — ${owner} (${wallet.currency})`;
+}
+
+export function BalanceCard({
+  walletId,
+  balance,
+  isLoading,
+  isAdmin,
+  walletOptions,
+  onWalletIdChange,
+  onRefresh,
+}: Props) {
+  const assignedWallet = walletOptions.find((wallet) => wallet.id === walletId);
+
   return (
     <section className="card">
       <div className="card__header">
@@ -17,10 +34,28 @@ export function BalanceCard({ walletId, balance, isLoading, onWalletIdChange, on
 
       <div className="wallet-picker">
         <label className="field">
-          <span>Wallet ID</span>
-          <input value={walletId} onChange={(e) => onWalletIdChange(e.target.value)} placeholder="wal_001" />
+          <span>{isAdmin ? 'Seleccionar wallet' : 'Wallet asignado'}</span>
+          {isAdmin ? (
+            <select
+              value={walletId}
+              onChange={(event) => onWalletIdChange(event.target.value)}
+              disabled={walletOptions.length === 0}
+            >
+              {walletOptions.map((wallet) => (
+                <option key={wallet.id} value={wallet.id}>
+                  {formatWalletOption(wallet)} — {wallet.status}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={assignedWallet ? formatWalletOption(assignedWallet) : walletId}
+              readOnly
+              aria-readonly="true"
+            />
+          )}
         </label>
-        <button className="btn btn--secondary" onClick={onRefresh} disabled={isLoading}>
+        <button className="btn btn--secondary" onClick={onRefresh} disabled={isLoading || !walletId}>
           {isLoading ? 'Cargando...' : 'Consultar'}
         </button>
       </div>

@@ -81,6 +81,7 @@ Si se usa el token de `juan.perez` (rol `CUSTOMER`) contra un wallet que no le p
 | Método | Ruta | Identificador | Descripción |
 |---|---|---|---|
 | POST | `/api/auth/login` | body | Login simulado, emite JWT |
+| GET | `/api/wallets/list` | — | Wallets accesibles (todas para ADMIN, solo propias para CUSTOMER) |
 | GET | `/api/wallets/balance?walletId=` | query param | Saldo disponible |
 | GET | `/api/wallets/movements?walletId=&type=&status=&page=&pageSize=` | query param | Movimientos paginados |
 | POST | `/api/transactions` | body (`walletId`) | Débito o crédito atómico (`Idempotency-Key` obligatorio) |

@@ -3,6 +3,15 @@ export interface LoginResponse {
   expiresIn: number;
 }
 
+export type UserRole = 'ADMIN' | 'CUSTOMER';
+
+export interface WalletSummary {
+  id: string;
+  ownerName: string | null;
+  currency: string;
+  status: WalletStatus;
+}
+
 export type WalletStatus = 'ACTIVE' | 'BLOCKED' | 'CLOSED';
 
 export interface BalanceResponse {

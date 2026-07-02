@@ -7,6 +7,8 @@ import { TransactionEntity } from '@app/transactions/entities/transaction.entity
 import { BalanceResponseDto } from './dto/balance-response.dto';
 import { MovementsQueryDto } from './dto/movements-query.dto';
 import { MovementsResponseDto } from './dto/movement-response.dto';
+import { WalletSummaryDto } from './dto/wallet-summary.dto';
+import { UserRole } from '@app/common/enums/user-role.enum';
 import { WalletNotFoundException } from '@app/common/exceptions/business.exceptions';
 import { MovementTypeFilter } from '@app/common/enums/movement-type.enum';
 import { TransactionStatusFilter } from '@app/common/enums/transaction-status.enum';
@@ -29,6 +31,24 @@ export class WalletsService {
     private readonly movementRepository: Repository<MovementEntity>,
     private readonly walletAccessService: WalletAccessService,
   ) {}
+
+  async listAccessibleWallets(user: JwtPayload): Promise<WalletSummaryDto[]> {
+    if (user.role === UserRole.ADMIN) {
+      const wallets = await this.walletRepository.find({ order: { id: 'ASC' } });
+      return wallets.map((wallet) => this.toWalletSummary(wallet));
+    }
+
+    if (!user.ownerName) {
+      return [];
+    }
+
+    const wallets = await this.walletRepository.find({
+      where: { ownerName: user.ownerName },
+      order: { id: 'ASC' },
+    });
+
+    return wallets.map((wallet) => this.toWalletSummary(wallet));
+  }
 
   async getBalance(walletId: string, user: JwtPayload): Promise<BalanceResponseDto> {
     const wallet = await this.findWalletOrFail(walletId);
@@ -94,6 +114,15 @@ export class WalletsService {
         externalReference: row.transaction_externalReference,
         createdAt: new Date(row.movement_createdAt).toISOString(),
       })),
+    };
+  }
+
+  private toWalletSummary(wallet: WalletEntity): WalletSummaryDto {
+    return {
+      id: wallet.id,
+      ownerName: wallet.ownerName ?? null,
+      currency: wallet.currency,
+      status: wallet.status,
     };
   }
 

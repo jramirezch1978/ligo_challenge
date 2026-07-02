@@ -136,6 +136,12 @@ select {
   border-color: var(--color-primary);
 }
 
+.field input[readonly] {
+  background: var(--color-surface-muted, #f4f6f8);
+  color: var(--color-text);
+  cursor: default;
+}
+
 .field--wide {
   grid-column: 1 / -1;
 }
