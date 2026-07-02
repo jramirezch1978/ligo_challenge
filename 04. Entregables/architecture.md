@@ -223,8 +223,11 @@ Cada regla de negocio crítica exigida por el challenge tiene al menos: (a) un t
 ejecutable (no solo inspección manual) en `04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json`,
 carpetas **"Reglas de negocio - Wallet"** y **"Reglas de negocio - Transacciones (atomicidad e idempotencia)"`.
 
-**91 tests automatizados en verde** (46 unitarios + 45 e2e, ejecutados contra PostgreSQL 17 real en este
-entorno: `npm test` y `npm run test:e2e` dentro de `02. backend`).
+**109 tests automatizados en verde** (64 unitarios + 45 e2e, ejecutados contra PostgreSQL 17 real en este
+entorno: `npm test` y `npm run test:e2e` dentro de `02. backend`). Los 64 unitarios incluyen 18 tests de
+**validación de DTOs** (`class-validator`, ejecutados sin bootstrap de Nest ni HTTP) que cierran
+explícitamente el requisito de "Testing Pyramid" del challenge: reglas de negocio, validaciones e
+idempotencia, cada una con su propio unit test dedicado.
 
 | Regla de negocio crítica | Test unitario | Test e2e (Postgres real) | Request Postman |
 |---|---|---|---|

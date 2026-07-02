@@ -132,6 +132,12 @@ docker compose down            # detener (conserva los datos)
 docker compose down -v         # detener y reiniciar la base de datos desde cero
 ```
 
+> Verificado en este entorno de punta a punta: `docker compose up --build -d` desde cero deja los 3
+> healthchecks en `healthy` (postgres → backend → frontend, en ese orden por `depends_on: condition:
+> service_healthy`) y el flujo funcional completo (login → débito → consulta de saldo → transferencia →
+> reversa → consulta de estado → reintento con la misma `Idempotency-Key`) responde correctamente contra el
+> stack levantado únicamente por este `docker-compose.yml`, sin depender de los `.bat`.
+
 ## 03. database
 
 Contiene los scripts SQL para recrear el esquema completo (`wallets`, `transactions`, `movements`,
