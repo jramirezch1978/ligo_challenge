@@ -12,7 +12,7 @@ fáciles de ubicar durante la revisión.
 | 2 | README con instrucciones claras | [`../README.md`](../README.md) (raíz) + README por capa ([`01. frontend`](<../01. frontend/README.md>), [`02. backend`](<../02. backend/README.md>)) | ✅ |
 | 3 | Docker Compose para app + PostgreSQL | [`docker-compose.yml`](docker-compose.yml) (este mismo directorio) | ✅ |
 | 4 | Migraciones o script de inicialización | Migraciones TypeORM: [`../02. backend/src/database/migrations`](<../02. backend/src/database/migrations>) · Scripts SQL: [`../03. database/init`](<../03. database/init>) | ✅ |
-| 5 | Swagger / OpenAPI | `http://localhost:3000/docs` una vez desplegado el backend (`SwaggerModule`, ver `main.ts`) | ✅ |
+| 5 | Swagger / OpenAPI | Spec exportado: [`openapi.json`](openapi.json) · UI en vivo: `http://localhost:3000/docs` una vez desplegado el backend (`SwaggerModule`, ver `main.ts`) | ✅ |
 | 6 | Tests unitarios e integración | Unitarios: `*.spec.ts` junto a cada servicio en `02. backend/src` · Integración: [`../02. backend/test/integration`](<../02. backend/test/integration>) | ✅ |
 | 7 | Diagrama simple de arquitectura | [`architecture.md`](architecture.md) | ✅ |
 | 8 | Colección Postman | [`postman/Ligo-Wallet-Service.postman_collection.json`](postman/Ligo-Wallet-Service.postman_collection.json) | ✅ |
@@ -60,6 +60,7 @@ docker compose down -v            # detener y reiniciar la base de datos desde c
 04. Entregables/
   README.md               Este archivo (checklist de entregables)
   docker-compose.yml       App + PostgreSQL en un solo comando
+  openapi.json             Especificacion OpenAPI 3.0 exportada del backend (/docs-json)
   architecture.md          Diagrama de arquitectura y decisiones de diseño
   ai-usage.md              Declaración de uso de IA
   postman/

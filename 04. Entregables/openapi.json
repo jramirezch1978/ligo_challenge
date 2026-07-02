@@ -1,0 +1,738 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "summary": "Simulated login. Returns a signed JWT for a mock, hardcoded user.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials."
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/wallets/balance": {
+      "get": {
+        "operationId": "WalletsController_getBalance",
+        "summary": "Get the available balance for a wallet",
+        "parameters": [
+          {
+            "name": "walletId",
+            "required": true,
+            "in": "query",
+            "description": "Identifier of the wallet to inspect",
+            "schema": {
+              "example": "wal_001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Wallet does not belong to the authenticated customer"
+          },
+          "404": {
+            "description": "Wallet not found"
+          }
+        },
+        "tags": [
+          "wallets"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/wallets/movements": {
+      "get": {
+        "operationId": "WalletsController_getMovements",
+        "summary": "List paginated movements for a wallet, filterable by type/status",
+        "parameters": [
+          {
+            "name": "walletId",
+            "required": true,
+            "in": "query",
+            "description": "Identifier of the wallet to list movements for",
+            "schema": {
+              "example": "wal_001",
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ALL",
+                "DEBIT",
+                "CREDIT"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ALL",
+                "PENDING",
+                "COMPLETED",
+                "FAILED",
+                "REVERSED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementsResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Wallet does not belong to the authenticated customer"
+          },
+          "404": {
+            "description": "Wallet not found"
+          }
+        },
+        "tags": [
+          "wallets"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/transactions": {
+      "post": {
+        "operationId": "TransactionsController_create",
+        "summary": "Create an atomic debit or credit transaction on a wallet",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or missing Idempotency-Key"
+          },
+          "403": {
+            "description": "Wallet does not belong to the authenticated customer"
+          },
+          "404": {
+            "description": "Wallet not found"
+          },
+          "409": {
+            "description": "Idempotency-Key conflict"
+          },
+          "422": {
+            "description": "Business rule violation (inactive wallet, insufficient funds, currency mismatch)"
+          }
+        },
+        "tags": [
+          "transactions"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/transactions/transfer": {
+      "post": {
+        "operationId": "TransactionsController_transfer",
+        "summary": "Transfer funds between two wallets (double-entry: debit source, credit target)",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Source wallet does not belong to the authenticated customer"
+          },
+          "404": {
+            "description": "Wallet not found"
+          },
+          "409": {
+            "description": "Idempotency-Key conflict"
+          },
+          "422": {
+            "description": "Business rule violation"
+          }
+        },
+        "tags": [
+          "transactions"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/transactions/reversal": {
+      "post": {
+        "operationId": "TransactionsController_reverse",
+        "summary": "Reverse a previously completed transaction exactly once",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReversalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Original transaction wallet does not belong to the authenticated customer"
+          },
+          "404": {
+            "description": "Transaction not found"
+          },
+          "409": {
+            "description": "Transaction already reversed or Idempotency-Key conflict"
+          },
+          "422": {
+            "description": "Transaction is not in a reversible state"
+          }
+        },
+        "tags": [
+          "transactions"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/transactions/status": {
+      "get": {
+        "operationId": "TransactionsController_getStatus",
+        "summary": "Get the current status of a transaction",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "query",
+            "description": "Identifier of the transaction to inspect",
+            "schema": {
+              "example": "txn_001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionStatusResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found"
+          }
+        },
+        "tags": [
+          "transactions"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Ligo Wallet Transaction Service",
+    "description": "Microservicio backend para gestionar operaciones de una billetera digital regulada: saldos, movimientos, d├®bitos/cr├®ditos, transferencias y reversas.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "access-token": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "senior.backend"
+          },
+          "password": {
+            "type": "string",
+            "example": "Password123"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ]
+      },
+      "LoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "expiresIn": {
+            "type": "number",
+            "example": 3600,
+            "description": "Token time-to-live, in seconds"
+          }
+        },
+        "required": [
+          "token",
+          "expiresIn"
+        ]
+      },
+      "BalanceResponseDto": {
+        "type": "object",
+        "properties": {
+          "walletId": {
+            "type": "string",
+            "example": "wal_001"
+          },
+          "currency": {
+            "type": "string",
+            "example": "PEN"
+          },
+          "availableBalance": {
+            "type": "string",
+            "example": "1500.00"
+          },
+          "status": {
+            "type": "string",
+            "example": "ACTIVE"
+          }
+        },
+        "required": [
+          "walletId",
+          "currency",
+          "availableBalance",
+          "status"
+        ]
+      },
+      "MovementItemDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "example": "txn_001"
+          },
+          "amount": {
+            "type": "string",
+            "example": "25.50"
+          },
+          "type": {
+            "type": "string",
+            "example": "DEBIT"
+          },
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          },
+          "description": {
+            "type": "object",
+            "example": "Pago QR comercio",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "object",
+            "example": "qr_789456",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-30T15:00:00.000Z"
+          }
+        },
+        "required": [
+          "transactionId",
+          "amount",
+          "type",
+          "status",
+          "createdAt"
+        ]
+      },
+      "MovementsResponseDto": {
+        "type": "object",
+        "properties": {
+          "walletId": {
+            "type": "string",
+            "example": "wal_001"
+          },
+          "total": {
+            "type": "number",
+            "example": 2
+          },
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "number",
+            "example": 20
+          },
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovementItemDto"
+            }
+          }
+        },
+        "required": [
+          "walletId",
+          "total",
+          "page",
+          "pageSize",
+          "movements"
+        ]
+      },
+      "CreateTransactionDto": {
+        "type": "object",
+        "properties": {
+          "walletId": {
+            "type": "string",
+            "example": "wal_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "example": "DEBIT"
+          },
+          "amount": {
+            "type": "string",
+            "example": "25.50",
+            "description": "Decimal string amount, never a float"
+          },
+          "currency": {
+            "type": "string",
+            "example": "PEN"
+          },
+          "description": {
+            "type": "string",
+            "example": "Pago QR comercio"
+          },
+          "externalReference": {
+            "type": "string",
+            "example": "qr_789456"
+          }
+        },
+        "required": [
+          "walletId",
+          "type",
+          "amount",
+          "currency"
+        ]
+      },
+      "TransactionResponseDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "example": "txn_001"
+          },
+          "walletId": {
+            "type": "string",
+            "example": "wal_001"
+          },
+          "targetWalletId": {
+            "type": "object",
+            "example": "wal_002",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "example": "DEBIT"
+          },
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          },
+          "amount": {
+            "type": "string",
+            "example": "25.50"
+          },
+          "currency": {
+            "type": "string",
+            "example": "PEN"
+          },
+          "description": {
+            "type": "object",
+            "example": "Pago QR comercio",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "object",
+            "example": "qr_789456",
+            "nullable": true
+          },
+          "reversalOfTransactionId": {
+            "type": "object",
+            "example": null,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-30T15:00:00.000Z"
+          }
+        },
+        "required": [
+          "transactionId",
+          "walletId",
+          "type",
+          "status",
+          "amount",
+          "currency",
+          "createdAt"
+        ]
+      },
+      "TransferDto": {
+        "type": "object",
+        "properties": {
+          "sourceWalletId": {
+            "type": "string",
+            "example": "wal_001"
+          },
+          "targetWalletId": {
+            "type": "string",
+            "example": "wal_002"
+          },
+          "amount": {
+            "type": "string",
+            "example": "100.00"
+          },
+          "currency": {
+            "type": "string",
+            "example": "PEN"
+          },
+          "description": {
+            "type": "string",
+            "example": "Transferencia entre usuarios"
+          },
+          "externalReference": {
+            "type": "string",
+            "example": "transfer_123"
+          }
+        },
+        "required": [
+          "sourceWalletId",
+          "targetWalletId",
+          "amount",
+          "currency"
+        ]
+      },
+      "ReversalDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "example": "txn_001",
+            "description": "Identifier of the transaction to reverse"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Merchant refund / reversal"
+          },
+          "externalReference": {
+            "type": "string",
+            "example": "rev_123456"
+          }
+        },
+        "required": [
+          "transactionId",
+          "reason"
+        ]
+      },
+      "TransactionStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "example": "txn_001"
+          },
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          },
+          "externalReference": {
+            "type": "object",
+            "example": "qr_789456",
+            "nullable": true
+          }
+        },
+        "required": [
+          "transactionId",
+          "status"
+        ]
+      }
+    }
+  }
+}
