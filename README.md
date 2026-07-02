@@ -5,6 +5,24 @@ regulada (débitos, créditos, transferencias, reversas, idempotencia, atomicida
 de un frontend de demostración y de los scripts de base de datos para desplegar cada capa de forma
 independiente en Docker local.
 
+## Requisitos fundamentales
+
+**Docker instalado y en ejecución en la máquina local** es obligatorio para compilar y desplegar este
+proyecto. No basta con tener Node.js o PostgreSQL instalados en el host: todo el flujo de build y deploy
+está diseñado para ejecutarse contra el daemon de Docker de tu PC.
+
+| Requisito | Detalle |
+|---|---|
+| **Docker Desktop** (Windows/macOS) o **Docker Engine** (Linux) | Debe estar instalado, corriendo y accesible desde la terminal (`docker info` sin errores). |
+| **Contexto Docker local** | Verificar con `docker context show` que apunta a tu máquina (p. ej. `desktop-linux` o `default`), no a un host remoto. |
+| **Node.js / npm en el host** | Solo necesarios si quieres ejecutar tests o desarrollo fuera de Docker; **no** son necesarios para `build.bat` ni `deploy.bat`. |
+
+> Sin Docker local, `build.bat` y `deploy.bat` no pueden crear contenedores ni imágenes. Los scripts no
+> compilan con herramientas del sistema operativo: crean un contenedor efímero (build multi-stage del
+> `Dockerfile` de cada capa), instalan dependencias y compilan **dentro** de ese contenedor, y la imagen
+> final solo contiene los artefactos ya compilados (`dist/` en backend, estáticos en frontend, esquema SQL
+> en database) — nunca el código fuente.
+
 ## Estructura del repositorio
 
 ```
@@ -20,11 +38,12 @@ deploy.bat        Dispatcher unificado: deploy.bat [database|backend|frontend|al
 Cada capa es autocontenida: tiene su propio código fuente, `Dockerfile` y sus propios `build.bat` y
 `deploy.bat`, con una separación estricta de responsabilidades:
 
-- **`build.bat`** compila **dentro de Docker** (build multi-stage del `Dockerfile` de cada capa) y
-  produce la imagen local lista para desplegar. No depende del Node/npm instalados en el host.
-- **`deploy.bat`** **solo despliega**: nunca reconstruye a partir del código fuente. Si la imagen todavía
-  no existe la construye una única vez (llamando a `build.bat`), pero su responsabilidad es crear la red,
-  el contenedor y publicarlo — no compilar código.
+- **`build.bat`** crea un contenedor de build (vía `docker build`, multi-stage) y **compila dentro de él**:
+  instala dependencias, ejecuta `nest build` / `vite build` / empaqueta SQL, y produce la imagen Docker
+  local lista para desplegar. **No usa Node, npm ni compiladores instalados en el host.**
+- **`deploy.bat`** **solo despliega**: crea la red Docker, levanta el contenedor de runtime a partir de
+  la imagen ya construida y publica los puertos. Si la imagen todavía no existe, la construye una única
+  vez llamando a `build.bat`, pero su responsabilidad no es compilar código en el host.
 
 El detalle de cada capa está en su propio README:
 
@@ -35,9 +54,13 @@ El detalle de cada capa está en su propio README:
 
 ## Despliegue local (comando unificado)
 
-Requisito: Docker Desktop corriendo. En la raíz del repositorio hay un `build.bat` y un `deploy.bat`
-únicos que reciben la capa como parámetro (`database`, `backend`, `frontend` o `all`) y delegan en el
-script correspondiente de cada carpeta:
+**Requisito:** Docker Desktop (o Docker Engine) **instalado y corriendo en tu máquina local** — ver
+[Requisitos fundamentales](#requisitos-fundamentales).
+
+En la raíz del repositorio hay un `build.bat` y un `deploy.bat` únicos que reciben la capa como parámetro
+(`database`, `backend`, `frontend` o `all`) y delegan en el script correspondiente de cada carpeta. Cada
+`build.bat` ejecuta `docker build`: Docker crea un contenedor de compilación, compila ahí el código, y
+guarda el resultado en una imagen local; luego `deploy.bat` levanta un contenedor de runtime con esa imagen.
 
 ```bat
 rem 1) Base de datos (PostgreSQL 17): build crea la imagen local con el
@@ -46,14 +69,14 @@ rem    contenedor y el volumen previos y reconstruye todo desde cero.
 build.bat database
 deploy.bat database
 
-rem 2) Backend (API NestJS): build compila DENTRO de Docker -> imagen
-rem    ligo-wallet-backend:latest; deploy solo despliega esa imagen
-rem    (requiere la base de datos ya desplegada).
+rem 2) Backend (API NestJS): build crea un contenedor Docker, compila NestJS
+rem    DENTRO de el (npm ci + nest build) -> imagen ligo-wallet-backend:latest;
+rem    deploy levanta el contenedor de runtime (requiere la base de datos ya desplegada).
 build.bat backend
 deploy.bat backend
 
-rem 3) Frontend (SPA servida por nginx): build compila DENTRO de Docker ->
-rem    imagen ligo-wallet-frontend:latest; deploy solo despliega esa imagen
+rem 3) Frontend (SPA servida por nginx): build crea un contenedor Docker, compila
+rem    Vite DENTRO de el -> imagen ligo-wallet-frontend:latest; deploy levanta nginx
 rem    (requiere el backend ya desplegado).
 build.bat frontend
 deploy.bat frontend
@@ -89,17 +112,17 @@ Credenciales de demo (login):
 - Backoffice (rol `ADMIN`, opera cualquier wallet): `senior.backend` / `Password123`.
 - Cliente demo (rol `CUSTOMER`, solo opera `wal_001`, dueño "Juan Perez"): `juan.perez` / `Cliente123`.
 
-> `build.bat` compila cada proyecto (instala dependencias y genera el artefacto: `dist/` en backend y
-> frontend). `deploy.bat` construye la imagen Docker correspondiente y levanta el contenedor en la red
-> `ligo-network`. Se pueden ejecutar de forma independiente y en cualquier orden salvo por las
-> dependencias de red en tiempo de ejecución (el backend espera activamente a PostgreSQL antes de
-> arrancar; el frontend hace de reverse proxy hacia el backend).
+> **`build.bat` vs `deploy.bat`:** `build.bat` solo construye imágenes Docker (compilando dentro de un
+> contenedor de build). `deploy.bat` solo levanta contenedores de runtime a partir de esas imágenes. Se
+> pueden ejecutar de forma independiente; el orden importa por dependencias de red (backend espera a
+> PostgreSQL; frontend hace reverse proxy hacia el backend).
 
 ### Alternativa: Docker Compose (app + PostgreSQL en un solo comando)
 
-Además de los `.bat` (pensados para Windows y para compilar/desplegar cada capa por separado), el
-repositorio incluye un `docker-compose.yml` en [`04. Entregables/`](<04. Entregables/docker-compose.yml>)
-que levanta las 3 capas de una sola vez con las mismas imágenes:
+Requisito: el mismo Docker local descrito arriba. Además de los `.bat` (pensados para Windows y para
+compilar/desplegar cada capa por separado), el repositorio incluye un `docker-compose.yml` en
+[`04. Entregables/`](<04. Entregables/docker-compose.yml>) que levanta las 3 capas de una sola vez con
+las mismas imágenes (también construidas vía Docker):
 
 ```bash
 cd "04. Entregables"
@@ -122,7 +145,7 @@ scripts a `docker-entrypoint-initdb.d`:
   init/
     001_schema.sql   Tipos, tablas, índices y foreign keys
     002_seed.sql     Wallets de demo (wal_001..wal_004)
-  build.bat          Construye la imagen local ligo-wallet-postgres:17
+  build.bat          Crea contenedor Docker y compila dentro de el -> imagen ligo-wallet-postgres:17
   deploy.bat         IDEMPOTENTE: siempre elimina el contenedor y el volumen previos y
                      levanta uno nuevo desde la imagen, con el esquema y el seed recien cargados
 ```

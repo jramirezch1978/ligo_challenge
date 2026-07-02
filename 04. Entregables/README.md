@@ -4,6 +4,10 @@ Esta carpeta reúne, en un solo lugar, los entregables exigidos por el *Backend 
 Ligo Challenge* que no son código de una capa específica (frontend/backend/database), para que sean
 fáciles de ubicar durante la revisión.
 
+> **Requisito:** Docker instalado y corriendo en la máquina local. Tanto los scripts `build.bat`/`deploy.bat`
+> de la raíz como este `docker compose` dependen del daemon de Docker local para crear contenedores y
+> compilar dentro de ellos. Ver [`../README.md`](../README.md#requisitos-fundamentales).
+
 ## Checklist de entregables
 
 | # | Entregable exigido | Dónde está | Estado |
