@@ -1,9 +1,20 @@
 import Decimal from 'decimal.js';
 
 /**
- * Wrapper around decimal.js to keep every monetary calculation exact.
- * Money always enters/leaves the domain as a string (never `number`/`float`)
- * to avoid IEEE-754 rounding errors when handling currency amounts.
+ * DESIGN PATTERN — Value Object (DDD) / Immutability.
+ *
+ * `Money` wraps decimal.js so every monetary calculation is exact, and
+ * exposes only intention-revealing operations (`add`, `subtract`,
+ * `isLessThan`, ...) instead of raw arithmetic. Two instances with the same
+ * amount are interchangeable (compared by `equals()`, not by reference), the
+ * private constructor + `of`/`zero` static factories prevent constructing an
+ * invalid instance, and every operation RETURNS A NEW `Money` rather than
+ * mutating `this` (immutability — avoids an entire class of concurrency and
+ * "who mutated my balance" bugs). Money always enters/leaves the domain as a
+ * string (never `number`/`float`) to avoid IEEE-754 rounding errors when
+ * handling currency amounts. This also solves the "primitive obsession"
+ * code smell: business rules read as `amount.isLessThan(balance)` instead of
+ * bare string/number comparisons scattered across the codebase.
  */
 export class Money {
   private readonly value: Decimal;

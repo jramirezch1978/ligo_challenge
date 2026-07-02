@@ -13,6 +13,13 @@ import { TransactionStatusFilter } from '@app/common/enums/transaction-status.en
 import { WalletAccessService } from '@app/common/access/wallet-access.service';
 import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 
+/**
+ * SOLID — Dependency Inversion Principle: this service depends on
+ * `Repository<T>` abstractions (injected by the framework via `@InjectRepository`)
+ * and on `WalletAccessService` through its constructor — never instantiating
+ * its own collaborators. This is what makes the service trivially unit
+ * testable and swappable.
+ */
 @Injectable()
 export class WalletsService {
   constructor(
@@ -34,11 +41,8 @@ export class WalletsService {
     };
   }
 
-  async getMovements(
-    walletId: string,
-    query: MovementsQueryDto,
-    user: JwtPayload,
-  ): Promise<MovementsResponseDto> {
+  async getMovements(query: MovementsQueryDto, user: JwtPayload): Promise<MovementsResponseDto> {
+    const { walletId } = query;
     const wallet = await this.findWalletOrFail(walletId);
     this.walletAccessService.assertCanOperate(user, wallet);
 

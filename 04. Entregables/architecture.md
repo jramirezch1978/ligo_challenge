@@ -48,7 +48,7 @@ Los montos **nunca** se representan como `float`: se almacenan como `numeric(18,
 
 ### 2. Atomicidad y consistencia
 
-Cada operación crítica (`POST /transactions`, `POST /transactions/transfer`, `POST /transactions/:id/reversal`) se ejecuta dentro de **una única transacción de base de datos** (`QueryRunner` con `START TRANSACTION`). Si cualquier paso falla, se hace `ROLLBACK` completo: ni el saldo, ni el movimiento, ni el registro de idempotencia ni la auditoría quedan escritos parcialmente.
+Cada operación crítica (`POST /transactions`, `POST /transactions/transfer`, `POST /transactions/reversal`) se ejecuta dentro de **una única transacción de base de datos** (`QueryRunner` con `START TRANSACTION`). Si cualquier paso falla, se hace `ROLLBACK` completo: ni el saldo, ni el movimiento, ni el registro de idempotencia ni la auditoría quedan escritos parcialmente.
 
 **Concurrencia**: antes de leer/mutar un saldo se bloquea la fila del wallet con `SELECT ... FOR UPDATE` (`pessimistic_write`). En transferencias, ambos wallets se bloquean en un **orden determinístico** (por `id` ascendente) para evitar *deadlocks* entre transferencias cruzadas concurrentes.
 
@@ -76,7 +76,48 @@ Una reversa **no** modifica la transacción original in-place; crea una **nueva 
 - `LoggingInterceptor` redacta campos sensibles (`password`, `token`, `authorization`, etc.) antes de loguear.
 - `helmet` habilitado, variables sensibles solo por entorno (`.env`, nunca hardcodeadas).
 
-### 6. Códigos de estado HTTP
+### 6. Convención REST: query param en lecturas, body param en escrituras
+
+Todas las rutas `GET` reciben el identificador del recurso como **query param** (`?walletId=...`,
+`?transactionId=...`), nunca como path param; todas las rutas `POST`/`PUT`/`PATCH`/`DELETE` reciben
+identificadores y campos exclusivamente en el **body** JSON. Esto es deliberado y consistente en toda la
+API:
+
+| Verbo | Endpoint | Identificador |
+|---|---|---|
+| `GET` | `/wallets/balance?walletId=wal_001` | query param |
+| `GET` | `/wallets/movements?walletId=wal_001&type=&status=&page=&pageSize=` | query param |
+| `POST` | `/transactions` | `walletId` en el body |
+| `POST` | `/transactions/transfer` | `sourceWalletId`/`targetWalletId` en el body |
+| `POST` | `/transactions/reversal` | `transactionId` en el body |
+| `GET` | `/transactions/status?transactionId=txn_001` | query param |
+
+No existen rutas `PUT`/`PATCH`/`DELETE`: el ledger de transacciones es **inmutable** (append-only) por
+requisitos de auditoría y de durabilidad ACID — una transacción nunca se edita ni se borra físicamente,
+solo se compensa creando una nueva transacción `REVERSAL` (`POST`, porque crea un recurso nuevo). Modelar
+el "deshacer" como una creación en vez de un borrado es el uso correcto del verbo para un dominio de
+ledger financiero regulado.
+
+### 6.1. Patrones de diseño, SOLID, herencia/polimorfismo y ACID
+
+Cada patrón/principio aplicado está documentado **directamente en el código fuente**, junto a la clase que
+lo implementa (no solo aquí). Resumen y ubicación:
+
+| Patrón / Principio | Dónde | Cómo |
+|---|---|---|
+| Template Method | `TransactionsService.withTransaction`, `IdempotencyService.run` | Fijan el esqueleto invariante (begin/commit/rollback; check-then-execute-then-record) y delegan la parte variable a un callback |
+| Facade | `TransactionsService` | Punto de entrada único que orquesta `IdempotencyService`, `AuditService`, `WalletAccessService` y el `DataSource` |
+| Strategy | `WalletAccessService` | Política de autorización intercambiable, inyectada por constructor |
+| Value Object (DDD) | `Money` (`common/utils/money.util.ts`) | Envoltorio inmutable sobre `decimal.js`; evita "primitive obsession" con montos |
+| Chain of Responsibility / Front Controller | `JwtAuthGuard`, `GlobalExceptionFilter` | Guard global y filtro global únicos en el pipeline de cada request |
+| Decorator (estructural) | `LoggingInterceptor` | Envuelve el `Observable` del handler con logging, sin que el handler lo sepa |
+| Herencia + Polimorfismo | `business.exceptions.ts` (`BusinessRuleException extends HttpException`) | Todas las excepciones de negocio heredan la forma común (422); `GlobalExceptionFilter` las trata polimórficamente vía `instanceof HttpException`, sin conocer las subclases concretas (Liskov Substitution) |
+| SOLID — SRP | Controllers vs. Services | Los controllers solo manejan HTTP; los services solo manejan reglas de negocio |
+| SOLID — OCP | `business.exceptions.ts`, `WalletAccessService` | Nuevas excepciones/roles se agregan extendiendo, sin modificar el filtro/las políticas existentes |
+| SOLID — DIP | Todos los `constructor(private readonly ...)` | Las clases dependen de abstracciones inyectadas por Nest, nunca instancian sus colaboradores |
+| ACID | `TransactionsService.withTransaction` | Atomicidad (commit/rollback), Consistencia (validaciones + constraints), Aislamiento (`READ COMMITTED` + `pessimistic_write`), Durabilidad (WAL de PostgreSQL) |
+
+### 7. Códigos de estado HTTP
 
 | Código | Significado en este servicio |
 |---|---|
@@ -88,11 +129,11 @@ Una reversa **no** modifica la transacción original in-place; crea una **nueva 
 | 422 | Regla de negocio violada (wallet inactiva, fondos insuficientes, monedas distintas, transacción no reversable) |
 | 500 | Error inesperado (nunca expone detalles internos) |
 
-### 7. Por qué NestJS + TypeORM
+### 8. Por qué NestJS + TypeORM
 
 NestJS aporta una arquitectura modular por capas (Controller → Service → Repository) con inyección de dependencias, guards, pipes e interceptors nativos, ideal para aplicar Clean Code y separar responsabilidades. TypeORM permite migraciones versionadas explícitas (requisito del challenge) y control fino sobre transacciones (`QueryRunner`) necesario para el bloqueo pesimista de filas.
 
-### 8. Despliegue en 3 capas independientes
+### 9. Despliegue en 3 capas independientes
 
 El repositorio está organizado en `01. frontend`, `02. backend` y `03. database`, cada una con su propio
 `build.bat` y `deploy.bat`, sin depender de un único `docker-compose` orquestador. Un `build.bat`/
@@ -141,7 +182,7 @@ flowchart LR
   propios scripts `deploy.bat` si no existe, simulando el patrón de despliegue independiente por
   microservicio (cada capa con su propio ciclo de compilación/despliegue) sin acoplar sus pipelines.
 
-### 9. Zona horaria y sincronización horaria (America/Lima)
+### 10. Zona horaria y sincronización horaria (America/Lima)
 
 Tanto la base de datos como el backend fijan explícitamente su zona horaria en **America/Lima (UTC-5)**,
 para que `now()`, `CURRENT_DATE`, los timestamps de auditoría y los logs reflejen la hora real de Perú en

@@ -21,11 +21,11 @@ export function ReversalForm({ onCompleted }: Props) {
     event.preventDefault();
     setIsSubmitting(true);
     try {
-      const result = await apiRequest<TransactionResponse>(`/transactions/${transactionId}/reversal`, {
+      const result = await apiRequest<TransactionResponse>('/transactions/reversal', {
         method: 'POST',
         token,
         idempotencyKey,
-        body: { reason, externalReference: externalReference || undefined },
+        body: { transactionId, reason, externalReference: externalReference || undefined },
       });
       notify('success', `Reversa ${result.transactionId} completada`);
       setIdempotencyKey(newIdempotencyKey());

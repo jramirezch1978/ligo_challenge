@@ -15,7 +15,10 @@ export function StatusLookup() {
     event.preventDefault();
     setIsLoading(true);
     try {
-      const response = await apiRequest<TransactionStatusResponse>(`/transactions/${transactionId}`, { token });
+      const response = await apiRequest<TransactionStatusResponse>(
+        `/transactions/status?transactionId=${encodeURIComponent(transactionId)}`,
+        { token },
+      );
       setResult(response);
     } catch (error) {
       setResult(null);

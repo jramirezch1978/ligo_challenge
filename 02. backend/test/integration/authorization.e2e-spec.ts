@@ -39,7 +39,8 @@ describe('Wallet ownership authorization (e2e)', () => {
     const wallet = await createTestWallet(dataSource, { ownerName: 'Someone Else' });
 
     await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
   });
@@ -48,7 +49,8 @@ describe('Wallet ownership authorization (e2e)', () => {
     const wallet = await createTestWallet(dataSource, { ownerName: CUSTOMER_OWNER_NAME });
 
     await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(200);
   });
@@ -57,7 +59,8 @@ describe('Wallet ownership authorization (e2e)', () => {
     const wallet = await createTestWallet(dataSource, { ownerName: 'Someone Else' });
 
     await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(403);
   });
@@ -66,7 +69,8 @@ describe('Wallet ownership authorization (e2e)', () => {
     const wallet = await createTestWallet(dataSource, { ownerName: 'Someone Else' });
 
     await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/movements`)
+      .get('/api/wallets/movements')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(403);
   });
@@ -153,10 +157,10 @@ describe('Wallet ownership authorization (e2e)', () => {
       .expect(201);
 
     await request(app.getHttpServer())
-      .post(`/api/transactions/${created.body.transactionId}/reversal`)
+      .post('/api/transactions/reversal')
       .set('Authorization', `Bearer ${customerToken}`)
       .set('Idempotency-Key', newIdempotencyKey())
-      .send({ reason: 'not mine' })
+      .send({ transactionId: created.body.transactionId, reason: 'not mine' })
       .expect(403);
   });
 });

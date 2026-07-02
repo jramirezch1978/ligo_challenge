@@ -20,6 +20,13 @@ function sanitize(value: unknown): unknown {
   return value;
 }
 
+/**
+ * DESIGN PATTERN — Decorator (structural).
+ * An interceptor wraps ("decorates") the underlying route handler's
+ * `Observable` stream with cross-cutting behavior (timing + logging) without
+ * the handler itself knowing it is being observed. SRP: this is the ONLY
+ * place in the codebase that logs HTTP access lines.
+ */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');

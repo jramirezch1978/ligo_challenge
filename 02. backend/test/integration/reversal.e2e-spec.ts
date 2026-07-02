@@ -32,17 +32,18 @@ describe('Reversals (e2e)', () => {
     return response.body.transactionId as string;
   };
 
-  const reverse = (transactionId: string, body: unknown, idempotencyKey?: string) => {
+  const reverse = (transactionId: string, body: Record<string, unknown>, idempotencyKey?: string) => {
     const req = request(app.getHttpServer())
-      .post(`/api/transactions/${transactionId}/reversal`)
+      .post('/api/transactions/reversal')
       .set('Authorization', `Bearer ${token}`);
     if (idempotencyKey) req.set('Idempotency-Key', idempotencyKey);
-    return req.send(body);
+    return req.send({ transactionId, ...body });
   };
 
   const balanceOf = async (walletId: string): Promise<string> => {
     const res = await request(app.getHttpServer())
-      .get(`/api/wallets/${walletId}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     return res.body.availableBalance;

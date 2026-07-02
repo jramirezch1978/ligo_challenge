@@ -27,7 +27,10 @@ export function DashboardPage() {
     async (targetWalletId: string) => {
       setIsLoadingBalance(true);
       try {
-        const response = await apiRequest<BalanceResponse>(`/wallets/${targetWalletId}/balance`, { token });
+        const response = await apiRequest<BalanceResponse>(
+          `/wallets/balance?walletId=${encodeURIComponent(targetWalletId)}`,
+          { token },
+        );
         setBalance(response);
       } catch (error) {
         setBalance(null);
@@ -44,12 +47,13 @@ export function DashboardPage() {
       setIsLoadingMovements(true);
       try {
         const query = new URLSearchParams({
+          walletId: targetWalletId,
           type: typeFilter,
           status: statusFilter,
           page: String(page),
           pageSize: String(PAGE_SIZE),
         });
-        const response = await apiRequest<MovementsResponse>(`/wallets/${targetWalletId}/movements?${query}`, {
+        const response = await apiRequest<MovementsResponse>(`/wallets/movements?${query}`, {
           token,
         });
         setMovements(response);

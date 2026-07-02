@@ -33,7 +33,8 @@ describe('Transfers (e2e)', () => {
 
   const balanceOf = async (walletId: string): Promise<string> => {
     const res = await request(app.getHttpServer())
-      .get(`/api/wallets/${walletId}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     return res.body.availableBalance;

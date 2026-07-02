@@ -18,13 +18,25 @@ export interface IdempotentResult<T> {
 const UNIQUE_VIOLATION_CODE = '23505';
 
 /**
+ * DESIGN PATTERN — Template Method (via an injected Strategy/Command).
+ *
+ * `run()` fixes the invariant SKELETON of every idempotent write endpoint:
+ * (1) try to reserve the key, (2) on collision resolve/replay the existing
+ * record, (3) otherwise execute the caller-supplied `handler` (the variable
+ * step, injected as a callback — a lightweight Strategy/Command), and
+ * (4) persist the outcome. Callers (`TransactionsService`) never repeat this
+ * skeleton; they only supply the part that changes (SOLID: SRP — this class
+ * owns idempotency concerns exclusively, never business rules; OCP — new
+ * idempotent operations plug in without changing this class).
+ *
  * Guarantees "exactly-once" semantics for critical write operations.
  *
  * The idempotency row is inserted/updated using the SAME database transaction
  * (QueryRunner) as the business logic it protects. This means: if the business
  * operation fails and the transaction rolls back, the idempotency record rolls
  * back too, so the key becomes available for a legitimate retry. If it succeeds,
- * both the business effects and the cached response are committed atomically.
+ * both the business effects and the cached response are committed atomically
+ * (ACID — Atomicity, see `TransactionsService.withTransaction`).
  */
 @Injectable()
 export class IdempotencyService {

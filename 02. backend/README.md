@@ -78,17 +78,21 @@ Si se usa el token de `juan.perez` (rol `CUSTOMER`) contra un wallet que no le p
 
 ## Endpoints principales
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | `/api/auth/login` | Login simulado, emite JWT |
-| GET | `/api/wallets/:walletId/balance` | Saldo disponible |
-| GET | `/api/wallets/:walletId/movements` | Movimientos paginados (`type`, `status`, `page`, `pageSize`) |
-| POST | `/api/transactions` | Débito o crédito atómico (`Idempotency-Key` obligatorio) |
-| POST | `/api/transactions/transfer` | Transferencia entre wallets (`Idempotency-Key` obligatorio) |
-| POST | `/api/transactions/:id/reversal` | Reversa única de una transacción (`Idempotency-Key` obligatorio) |
-| GET | `/api/transactions/:id` | Estado de una transacción |
-| GET | `/health` | Liveness |
-| GET | `/health/ready` | Readiness (verifica conexión a PostgreSQL) |
+| Método | Ruta | Identificador | Descripción |
+|---|---|---|---|
+| POST | `/api/auth/login` | body | Login simulado, emite JWT |
+| GET | `/api/wallets/balance?walletId=` | query param | Saldo disponible |
+| GET | `/api/wallets/movements?walletId=&type=&status=&page=&pageSize=` | query param | Movimientos paginados |
+| POST | `/api/transactions` | body (`walletId`) | Débito o crédito atómico (`Idempotency-Key` obligatorio) |
+| POST | `/api/transactions/transfer` | body (`sourceWalletId`/`targetWalletId`) | Transferencia entre wallets (`Idempotency-Key` obligatorio) |
+| POST | `/api/transactions/reversal` | body (`transactionId`) | Reversa única de una transacción (`Idempotency-Key` obligatorio) |
+| GET | `/api/transactions/status?transactionId=` | query param | Estado de una transacción |
+| GET | `/health` | — | Liveness |
+| GET | `/health/ready` | — | Readiness (verifica conexión a PostgreSQL) |
+
+Convención de la API: toda ruta `GET` recibe el identificador del recurso como **query param**; toda ruta
+`POST`/`PUT`/`PATCH`/`DELETE` lo recibe en el **body**. No hay path params ni rutas `PUT`/`PATCH`/`DELETE`
+— el ledger de transacciones es inmutable, ver `04. Entregables/architecture.md` §6.
 
 Contrato completo, ejemplos y códigos de error: ver Swagger en `/docs` y la colección Postman en
 [`../04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json`](<../04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json>).

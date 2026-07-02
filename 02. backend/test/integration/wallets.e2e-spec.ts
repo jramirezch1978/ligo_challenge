@@ -26,7 +26,8 @@ describe('Wallets (e2e)', () => {
     const wallet = await createTestWallet(dataSource, { availableBalance: '250.75' });
 
     const response = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
@@ -40,7 +41,8 @@ describe('Wallets (e2e)', () => {
 
   it('returns 404 for a non-existent wallet', async () => {
     await request(app.getHttpServer())
-      .get('/api/wallets/wal_does_not_exist/balance')
+      .get('/api/wallets/balance')
+      .query({ walletId: 'wal_does_not_exist' })
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
   });
@@ -69,8 +71,8 @@ describe('Wallets (e2e)', () => {
       .expect(201);
 
     const response = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/movements`)
-      .query({ type: 'ALL', status: 'COMPLETED', page: 1, pageSize: 20 })
+      .get('/api/wallets/movements')
+      .query({ walletId: wallet.id, type: 'ALL', status: 'COMPLETED', page: 1, pageSize: 20 })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
@@ -97,8 +99,8 @@ describe('Wallets (e2e)', () => {
       .expect(201);
 
     const response = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/movements`)
-      .query({ type: 'DEBIT' })
+      .get('/api/wallets/movements')
+      .query({ walletId: wallet.id, type: 'DEBIT' })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 

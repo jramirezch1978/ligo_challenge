@@ -83,9 +83,10 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/wallets/{{walletId1}}/balance",
+              "raw": "{{baseUrl}}/wallets/balance?walletId={{walletId1}}",
               "host": ["{{baseUrl}}"],
-              "path": ["wallets", "{{walletId1}}", "balance"]
+              "path": ["wallets", "balance"],
+              "query": [{ "key": "walletId", "value": "{{walletId1}}" }]
             }
           }
         },
@@ -98,9 +99,10 @@
             },
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/wallets/{{walletId2}}/balance",
+              "raw": "{{baseUrl}}/wallets/balance?walletId={{walletId2}}",
               "host": ["{{baseUrl}}"],
-              "path": ["wallets", "{{walletId2}}", "balance"]
+              "path": ["wallets", "balance"],
+              "query": [{ "key": "walletId", "value": "{{walletId2}}" }]
             }
           }
         },
@@ -109,15 +111,32 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/wallets/{{walletId1}}/movements?type=ALL&status=COMPLETED&page=1&pageSize=20",
+              "raw": "{{baseUrl}}/wallets/movements?walletId={{walletId1}}&type=ALL&status=COMPLETED&page=1&pageSize=20",
               "host": ["{{baseUrl}}"],
-              "path": ["wallets", "{{walletId1}}", "movements"],
+              "path": ["wallets", "movements"],
               "query": [
+                { "key": "walletId", "value": "{{walletId1}}" },
                 { "key": "type", "value": "ALL" },
                 { "key": "status", "value": "COMPLETED" },
                 { "key": "page", "value": "1" },
                 { "key": "pageSize", "value": "20" }
               ]
+            }
+          }
+        },
+        {
+          "name": "List movements of another owner's wallet with customer token (expect 403)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/movements?walletId={{walletId2}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "movements"],
+              "query": [{ "key": "walletId", "value": "{{walletId2}}" }]
             }
           }
         }
@@ -293,12 +312,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Merchant refund / reversal\",\n  \"externalReference\": \"rev_123456\"\n}"
+              "raw": "{\n  \"transactionId\": \"{{transactionId}}\",\n  \"reason\": \"Merchant refund / reversal\",\n  \"externalReference\": \"rev_123456\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/transactions/{{transactionId}}/reversal",
+              "raw": "{{baseUrl}}/transactions/reversal",
               "host": ["{{baseUrl}}"],
-              "path": ["transactions", "{{transactionId}}", "reversal"]
+              "path": ["transactions", "reversal"]
             }
           }
         },
@@ -312,12 +331,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Duplicate reversal attempt\"\n}"
+              "raw": "{\n  \"transactionId\": \"{{transactionId}}\",\n  \"reason\": \"Duplicate reversal attempt\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/transactions/{{transactionId}}/reversal",
+              "raw": "{{baseUrl}}/transactions/reversal",
               "host": ["{{baseUrl}}"],
-              "path": ["transactions", "{{transactionId}}", "reversal"]
+              "path": ["transactions", "reversal"]
             }
           }
         },
@@ -326,9 +345,10 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "raw": "{{baseUrl}}/transactions/status?transactionId={{transactionId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["transactions", "{{transactionId}}"]
+              "path": ["transactions", "status"],
+              "query": [{ "key": "transactionId", "value": "{{transactionId}}" }]
             }
           }
         }

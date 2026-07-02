@@ -18,9 +18,24 @@ interface ErrorResponseBody {
 }
 
 /**
- * Centralized error handler: normalizes every thrown error into a consistent
- * JSON shape and NEVER leaks stack traces or internal details to the client.
- * Full error details are only written to the server-side log.
+ * DESIGN PATTERN — Chain of Responsibility / Front Controller.
+ * Nest routes every uncaught exception from every controller through this
+ * single filter (registered once as `APP_FILTER`), which is itself the last
+ * link in the guard → interceptor → filter pipeline chain.
+ *
+ * POLYMORPHISM in `resolveError()` below: the filter never asks "which
+ * concrete exception class is this?" (`WalletNotFoundException`,
+ * `InsufficientFundsException`, `WalletAccessForbiddenException`, ...). It
+ * only asks `exception instanceof HttpException` and calls the polymorphic
+ * `getStatus()` / `getResponse()` methods that EVERY subclass inherits. This
+ * is the Open/Closed Principle in practice: new business exceptions (see
+ * `business.exceptions.ts`) can be added forever without ever touching this
+ * file.
+ *
+ * SRP: this class has exactly one responsibility — translating any thrown
+ * error into the API's single, consistent JSON error shape — and NEVER
+ * leaks stack traces or internal details to the client. Full error details
+ * are only written to the server-side log.
  */
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {

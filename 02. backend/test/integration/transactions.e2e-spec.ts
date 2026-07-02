@@ -51,7 +51,8 @@ describe('Transactions (e2e)', () => {
     expect(response.body.type).toBe('DEBIT');
 
     const balance = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(balance.body.availableBalance).toBe('70.00');
@@ -66,7 +67,8 @@ describe('Transactions (e2e)', () => {
     ).expect(201);
 
     const balance = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(balance.body.availableBalance).toBe('150.00');
@@ -81,7 +83,8 @@ describe('Transactions (e2e)', () => {
     ).expect(422);
 
     const balance = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(balance.body.availableBalance).toBe('10.00');
@@ -144,7 +147,8 @@ describe('Transactions (e2e)', () => {
     expect(second.body).toEqual(first.body);
 
     const balance = await request(app.getHttpServer())
-      .get(`/api/wallets/${wallet.id}/balance`)
+      .get('/api/wallets/balance')
+      .query({ walletId: wallet.id })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     // Balance must reflect a SINGLE debit, proving the retry was not reprocessed.
@@ -179,7 +183,8 @@ describe('Transactions (e2e)', () => {
     ).expect(201);
 
     const response = await request(app.getHttpServer())
-      .get(`/api/transactions/${created.body.transactionId}`)
+      .get('/api/transactions/status')
+      .query({ transactionId: created.body.transactionId })
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
@@ -192,7 +197,8 @@ describe('Transactions (e2e)', () => {
 
   it('returns 404 when querying the status of an unknown transaction', async () => {
     await request(app.getHttpServer())
-      .get('/api/transactions/txn_does_not_exist')
+      .get('/api/transactions/status')
+      .query({ transactionId: 'txn_does_not_exist' })
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
   });

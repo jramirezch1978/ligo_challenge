@@ -7,6 +7,7 @@ import { MovementEntity } from './entities/movement.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { ReversalDto } from './dto/reversal.dto';
+import { TransactionStatusQueryDto } from './dto/transaction-status-query.dto';
 import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { TransactionStatusResponseDto } from './dto/transaction-status-response.dto';
 import { IdempotencyService } from '@app/idempotency/idempotency.service';
@@ -33,9 +34,19 @@ import {
 const ENDPOINTS = {
   CREATE: 'POST:/transactions',
   TRANSFER: 'POST:/transactions/transfer',
-  REVERSAL: (id: string) => `POST:/transactions/${id}/reversal`,
+  REVERSAL: 'POST:/transactions/reversal',
 };
 
+/**
+ * DESIGN PATTERN — Facade.
+ * `TransactionsService` is the single entry point that orchestrates several
+ * collaborators (`IdempotencyService`, `AuditService`, `WalletAccessService`,
+ * the TypeORM `DataSource`) behind three simple public operations
+ * (`createTransaction`, `transfer`, `reverse`). Callers (the controller)
+ * never talk to those collaborators directly (SOLID: SRP — this class's one
+ * job is coordinating the ledger write use cases; DIP — every collaborator
+ * is injected through the constructor as an abstraction).
+ */
 @Injectable()
 export class TransactionsService {
   private readonly logger = new Logger(TransactionsService.name);
@@ -210,17 +221,17 @@ export class TransactionsService {
   }
 
   async reverse(
-    transactionId: string,
     dto: ReversalDto,
     idempotencyKey: string,
     actor: JwtPayload,
   ): Promise<{ statusCode: number; body: TransactionResponseDto; replayed: boolean }> {
+    const { transactionId } = dto;
     const performedBy = actor.username;
     return this.withTransaction(async (queryRunner) => {
       return this.idempotencyService.run(
         queryRunner,
         idempotencyKey,
-        ENDPOINTS.REVERSAL(transactionId),
+        ENDPOINTS.REVERSAL,
         dto,
         async () => {
           const original = await queryRunner.manager.findOne(TransactionEntity, {
@@ -359,7 +370,8 @@ export class TransactionsService {
     });
   }
 
-  async getStatus(transactionId: string): Promise<TransactionStatusResponseDto> {
+  async getStatus(query: TransactionStatusQueryDto): Promise<TransactionStatusResponseDto> {
+    const { transactionId } = query;
     const transaction = await this.dataSource.manager.findOne(TransactionEntity, {
       where: { id: transactionId },
     });
@@ -375,6 +387,30 @@ export class TransactionsService {
 
   // ---- helpers -----------------------------------------------------------
 
+  /**
+   * DESIGN PATTERN — Template Method.
+   * Fixes the invariant skeleton (open connection -> start transaction ->
+   * run variable `work` -> commit on success / rollback on failure ->
+   * always release) so every write use case above (`createTransaction`,
+   * `transfer`, `reverse`) only supplies the part that changes.
+   *
+   * ACID GUARANTEES implemented by this single helper:
+   *  - Atomicity:   `work` runs inside one DB transaction; ANY thrown error
+   *    (business rule, DB constraint, unexpected bug) triggers a full
+   *    `rollbackTransaction()`, so a debit, its movement row, the
+   *    idempotency record and the audit log either ALL land or NONE do —
+   *    never a partial write.
+   *  - Consistency: business invariants (`assertWalletOperable`,
+   *    sufficient-funds checks, currency match, etc.) are validated BEFORE
+   *    any write is issued, and DB-level constraints (FKs, numeric scale,
+   *    enum types, unique idempotency key) provide a second safety net.
+   *  - Isolation:   the transaction runs at `READ COMMITTED`, combined with
+   *    `pessimistic_write` row locks acquired on every wallet touched (see
+   *    `lockWallet`) so concurrent operations on the SAME wallet serialize
+   *    instead of racing on stale balances (prevents lost updates).
+   *  - Durability:  once `commitTransaction()` returns, PostgreSQL has
+   *    fsync'd the change to its WAL — the effect survives a crash.
+   */
   private async withTransaction<T>(work: (queryRunner: QueryRunner) => Promise<T>): Promise<T> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -391,6 +427,7 @@ export class TransactionsService {
     }
   }
 
+  /** Isolation building block: a `SELECT ... FOR UPDATE` row lock (ACID). */
   private async lockWallet(queryRunner: QueryRunner, walletId: string): Promise<WalletEntity> {
     const wallet = await queryRunner.manager.findOne(WalletEntity, {
       where: { id: walletId },

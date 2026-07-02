@@ -444,7 +444,11 @@ describe('TransactionsService', () => {
       );
       const service = buildService(dataSource);
 
-      const result = await service.reverse('txn_001', { reason: 'refund' }, 'idem-2', adminActor);
+      const result = await service.reverse(
+        { transactionId: 'txn_001', reason: 'refund' },
+        'idem-2',
+        adminActor,
+      );
 
       expect(result.body.type).toBe(TransactionType.REVERSAL);
       expect(wallets.get('wal_001')?.availableBalance).toBe('100.00');
@@ -457,7 +461,7 @@ describe('TransactionsService', () => {
       const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_missing', { reason: 'x' }, 'idem-2', adminActor),
+        service.reverse({ transactionId: 'txn_missing', reason: 'x' }, 'idem-2', adminActor),
       ).rejects.toBeInstanceOf(TransactionNotFoundException);
     });
 
@@ -483,7 +487,7 @@ describe('TransactionsService', () => {
       const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_001', { reason: 'x' }, 'idem-2', adminActor),
+        service.reverse({ transactionId: 'txn_001', reason: 'x' }, 'idem-2', adminActor),
       ).rejects.toBeInstanceOf(TransactionAlreadyReversedException);
     });
 
@@ -509,7 +513,7 @@ describe('TransactionsService', () => {
       const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_002', { reason: 'x' }, 'idem-2', adminActor),
+        service.reverse({ transactionId: 'txn_002', reason: 'x' }, 'idem-2', adminActor),
       ).rejects.toBeInstanceOf(TransactionNotReversibleException);
     });
 
@@ -538,7 +542,11 @@ describe('TransactionsService', () => {
       const service = buildService(dataSource);
 
       await expect(
-        service.reverse('txn_001', { reason: 'refund' }, 'idem-2', customerActor('Juan Perez')),
+        service.reverse(
+          { transactionId: 'txn_001', reason: 'refund' },
+          'idem-2',
+          customerActor('Juan Perez'),
+        ),
       ).rejects.toBeInstanceOf(WalletAccessForbiddenException);
       expect(wallets.get('wal_001')?.availableBalance).toBe('60.00');
     });

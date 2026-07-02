@@ -1,42 +1,50 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { WalletsService } from './wallets.service';
+import { BalanceQueryDto } from './dto/balance-query.dto';
 import { BalanceResponseDto } from './dto/balance-response.dto';
 import { MovementsQueryDto } from './dto/movements-query.dto';
 import { MovementsResponseDto } from './dto/movement-response.dto';
 import { CurrentUser } from '@app/common/decorators/current-user.decorator';
 import { JwtPayload } from '@app/auth/interfaces/jwt-payload.interface';
 
+/**
+ * SOLID — Single Responsibility Principle: this controller only translates
+ * HTTP concerns (routing, query-param parsing/validation via DTOs, status
+ * codes, Swagger docs) into calls on `WalletsService`. It contains ZERO
+ * business logic — that lives exclusively in the service layer.
+ *
+ * REST verb usage: both routes below are read-only lookups, so they use
+ * `GET` with the resource identifier passed as a QUERY PARAM (`?walletId=`)
+ * rather than a path param, per this API's convention (see `README`).
+ */
 @ApiTags('wallets')
 @ApiBearerAuth()
 @Controller('wallets')
 export class WalletsController {
   constructor(private readonly walletsService: WalletsService) {}
 
-  @Get(':walletId/balance')
+  @Get('balance')
   @ApiOperation({ summary: 'Get the available balance for a wallet' })
-  @ApiParam({ name: 'walletId', example: 'wal_001' })
   @ApiResponse({ status: 200, type: BalanceResponseDto })
   @ApiResponse({ status: 403, description: 'Wallet does not belong to the authenticated customer' })
   @ApiResponse({ status: 404, description: 'Wallet not found' })
   getBalance(
-    @Param('walletId') walletId: string,
+    @Query() query: BalanceQueryDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<BalanceResponseDto> {
-    return this.walletsService.getBalance(walletId, user);
+    return this.walletsService.getBalance(query.walletId, user);
   }
 
-  @Get(':walletId/movements')
+  @Get('movements')
   @ApiOperation({ summary: 'List paginated movements for a wallet, filterable by type/status' })
-  @ApiParam({ name: 'walletId', example: 'wal_001' })
   @ApiResponse({ status: 200, type: MovementsResponseDto })
   @ApiResponse({ status: 403, description: 'Wallet does not belong to the authenticated customer' })
   @ApiResponse({ status: 404, description: 'Wallet not found' })
   getMovements(
-    @Param('walletId') walletId: string,
     @Query() query: MovementsQueryDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<MovementsResponseDto> {
-    return this.walletsService.getMovements(walletId, query, user);
+    return this.walletsService.getMovements(query, user);
   }
 }
