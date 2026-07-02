@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Ligo Wallet Transaction Service",
-    "description": "Colección Postman para el Wallet Transaction Service (Ligo - Backend Senior Technical Challenge).",
+    "description": "Colección Postman para el Wallet Transaction Service (Ligo - Backend Senior Technical Challenge). Cada carpeta 'Reglas de negocio' contiene un request por cada regla crítica de wallet/transacciones exigida por el challenge, con scripts pm.test ejecutables (Collection Runner) que verifican el código HTTP esperado, no solo inspección manual.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,8 +10,11 @@
     { "key": "customerToken", "value": "" },
     { "key": "walletId1", "value": "wal_001" },
     { "key": "walletId2", "value": "wal_002" },
+    { "key": "usdWalletId", "value": "wal_003" },
     { "key": "blockedWalletId", "value": "wal_004" },
-    { "key": "transactionId", "value": "" }
+    { "key": "transactionId", "value": "" },
+    { "key": "reversalTransactionId", "value": "" },
+    { "key": "idempotentFirstResponse", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -22,17 +25,19 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Login",
+          "name": "Login (ADMIN)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns a JWT token', () => {",
                   "  const body = pm.response.json();",
+                  "  pm.expect(body.token).to.be.a('string');",
                   "  pm.collectionVariables.set('token', body.token);",
-                  "}"
+                  "});"
                 ]
               }
             }
@@ -48,17 +53,19 @@
           }
         },
         {
-          "name": "Login (customer, CUSTOMER role, owns wal_001 only)",
+          "name": "Login (CUSTOMER, owns wal_001 only)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns a JWT token', () => {",
                   "  const body = pm.response.json();",
+                  "  pm.expect(body.token).to.be.a('string');",
                   "  pm.collectionVariables.set('customerToken', body.token);",
-                  "}"
+                  "});"
                 ]
               }
             }
@@ -72,6 +79,50 @@
             },
             "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
           }
+        },
+        {
+          "name": "[Seguridad] Login with invalid credentials (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"senior.backend\",\n  \"password\": \"wrong-password\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "[Seguridad] Login with malformed payload, missing password (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"senior.backend\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
         }
       ]
     },
@@ -79,33 +130,65 @@
       "name": "Wallets",
       "item": [
         {
-          "name": "List accessible wallets (ADMIN)",
+          "name": "List accessible wallets (ADMIN sees all)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns an array with more than one wallet', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "  pm.expect(body.length).to.be.greaterThan(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/wallets/list",
-              "host": ["{{baseUrl}}"],
-              "path": ["wallets", "list"]
-            }
+            "url": { "raw": "{{baseUrl}}/wallets/list", "host": ["{{baseUrl}}"], "path": ["wallets", "list"] }
           }
         },
         {
-          "name": "List accessible wallets (CUSTOMER, own wallets only)",
+          "name": "List accessible wallets (CUSTOMER sees only own wallets)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Every wallet belongs to Juan Perez', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.every((w) => w.ownerName === 'Juan Perez')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
             },
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/wallets/list",
-              "host": ["{{baseUrl}}"],
-              "path": ["wallets", "list"]
-            }
+            "url": { "raw": "{{baseUrl}}/wallets/list", "host": ["{{baseUrl}}"], "path": ["wallets", "list"] }
           }
         },
         {
           "name": "Get balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -117,7 +200,38 @@
           }
         },
         {
-          "name": "Get balance of another owner's wallet with customer token (expect 403)",
+          "name": "[Seguridad] Get balance without token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/wallets/balance?walletId={{walletId1}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallets", "balance"],
+              "query": [{ "key": "walletId", "value": "{{walletId1}}" }]
+            }
+          }
+        },
+        {
+          "name": "[Seguridad] Get balance of another owner's wallet with customer token (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -134,6 +248,15 @@
         },
         {
           "name": "Get movements (paginated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -151,7 +274,16 @@
           }
         },
         {
-          "name": "List movements of another owner's wallet with customer token (expect 403)",
+          "name": "[Seguridad] List movements of another owner's wallet with customer token (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -179,10 +311,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Transaction is COMPLETED', () => {",
                   "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('COMPLETED');",
                   "  pm.collectionVariables.set('transactionId', body.transactionId);",
-                  "}"
+                  "});"
                 ]
               }
             }
@@ -202,6 +336,15 @@
         },
         {
           "name": "Create credit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 201', () => pm.response.to.have.status(201));"]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -216,101 +359,19 @@
           }
         },
         {
-          "name": "Debit with insufficient funds (422)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "{{$guid}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"999999.00\",\n  \"currency\": \"PEN\"\n}"
-            },
-            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
-          }
-        },
-        {
-          "name": "Debit on blocked wallet (422)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "{{$guid}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"walletId\": \"{{blockedWalletId}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
-            },
-            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
-          }
-        },
-        {
-          "name": "Debit another owner's wallet with customer token (expect 403)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "{{$guid}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"walletId\": \"{{walletId2}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
-            },
-            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
-          }
-        },
-        {
-          "name": "Debit on unknown wallet (404)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "{{$guid}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"walletId\": \"wal_does_not_exist\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
-            },
-            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
-          }
-        },
-        {
-          "name": "Repeat with same Idempotency-Key (replay)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"5.00\",\n  \"currency\": \"PEN\"\n}"
-            },
-            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
-          }
-        },
-        {
-          "name": "Same key, different body (409 Conflict)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"999.00\",\n  \"currency\": \"PEN\"\n}"
-            },
-            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
-          }
-        },
-        {
           "name": "Transfer between wallets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Type is TRANSFER', () => pm.expect(pm.response.json().type).to.eql('TRANSFER'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -330,6 +391,22 @@
         },
         {
           "name": "Reverse a transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Type is REVERSAL', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.type).to.eql('REVERSAL');",
+                  "  pm.collectionVariables.set('reversalTransactionId', body.transactionId);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -348,7 +425,411 @@
           }
         },
         {
-          "name": "Reverse the same transaction again (409)",
+          "name": "Get transaction status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions/status?transactionId={{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "status"],
+              "query": [{ "key": "transactionId", "value": "{{transactionId}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reglas de negocio - Wallet",
+      "description": "Un request por cada regla crítica de WALLET del challenge: solo ACTIVE opera, sin saldo negativo, sin operar entre monedas distintas, montos siempre decimal/string (nunca float).",
+      "item": [
+        {
+          "name": "[Wallet] Solo ACTIVE puede operar -> debit en wallet bloqueada (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{blockedWalletId}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Wallet] No se permite saldo negativo -> debit con fondos insuficientes (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"999999.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Wallet] No se permite operar con monedas distintas -> debit con currency mismatch (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Wallet] Montos siempre decimal/string, nunca float -> amount con 3 decimales (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.999\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Wallet] Debit en wallet inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 404', () => pm.response.to.have.status(404));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"wal_does_not_exist\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Seguridad] Debit en wallet de otro dueño con token de cliente (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId2}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Transfer] Origen y destino deben ser distintos (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{walletId1}}\",\n  \"targetWalletId\": \"{{walletId1}}\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "[Transfer] Fondos insuficientes en wallet origen (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{walletId2}}\",\n  \"targetWalletId\": \"{{walletId1}}\",\n  \"amount\": \"999999.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "[Transfer] Monedas distintas entre origen y destino (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{walletId1}}\",\n  \"targetWalletId\": \"{{usdWalletId}}\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "[Transfer] Wallet destino bloqueada (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{walletId1}}\",\n  \"targetWalletId\": \"{{blockedWalletId}}\",\n  \"amount\": \"10.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "transfer"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reglas de negocio - Transacciones (atomicidad e idempotencia)",
+      "description": "Un request por cada regla crítica de TRANSACCIONES del challenge: atomicidad/rollback (cubierto por tests automatizados, ver README), idempotencia exacta, conflicto por payload distinto, y no reversar dos veces.",
+      "item": [
+        {
+          "name": "[Idempotencia] Primera llamada con Idempotency-Key nueva (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('idempotentFirstResponse', pm.response.text());"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"5.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Idempotencia] Misma Idempotency-Key + mismo body -> misma respuesta exacta (201, sin reprocesar)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Response body is IDENTICAL to the first call (replay, not reprocessed)', () => {",
+                  "  pm.expect(pm.response.text()).to.eql(pm.collectionVariables.get('idempotentFirstResponse'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"5.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Idempotencia] Misma Idempotency-Key + body DISTINTO -> conflicto (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 409', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "fixed-demo-key-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"999.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Transacciones] Idempotency-Key obligatoria -> falta el header (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletId\": \"{{walletId1}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": \"5.00\",\n  \"currency\": \"PEN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/transactions", "host": ["{{baseUrl}}"], "path": ["transactions"] }
+          }
+        },
+        {
+          "name": "[Transacciones] Una transacción reversada no puede reversarse de nuevo (409)",
+          "description": "Requiere haber corrido antes 'Transactions > Reverse a transaction' en esta misma corrida, para que {{transactionId}} ya este reversada.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 409', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -367,14 +848,91 @@
           }
         },
         {
-          "name": "Get transaction status",
+          "name": "[Transacciones] Una reversa no puede reversarse a si misma (422)",
+          "description": "Requiere haber corrido antes 'Transactions > Reverse a transaction' en esta misma corrida, para tener {{reversalTransactionId}}.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 422', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
           "request": {
-            "method": "GET",
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"{{reversalTransactionId}}\",\n  \"reason\": \"Reverse a reversal\"\n}"
+            },
             "url": {
-              "raw": "{{baseUrl}}/transactions/status?transactionId={{transactionId}}",
+              "raw": "{{baseUrl}}/transactions/reversal",
               "host": ["{{baseUrl}}"],
-              "path": ["transactions", "status"],
-              "query": [{ "key": "transactionId", "value": "{{transactionId}}" }]
+              "path": ["transactions", "reversal"]
+            }
+          }
+        },
+        {
+          "name": "[Transacciones] Reversar una transacción inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 404', () => pm.response.to.have.status(404));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"txn_does_not_exist\",\n  \"reason\": \"n/a\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/reversal",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "reversal"]
+            }
+          }
+        },
+        {
+          "name": "[Seguridad] Reversar transacción de wallet de otro dueño con token de cliente (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status code is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"{{transactionId}}\",\n  \"reason\": \"attempt by non-owner\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/reversal",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "reversal"]
             }
           }
         }
@@ -385,6 +943,18 @@
       "item": [
         {
           "name": "Liveness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "auth": { "type": "noauth" },
             "method": "GET",
@@ -392,7 +962,19 @@
           }
         },
         {
-          "name": "Readiness",
+          "name": "Readiness (verifica conexión a PostgreSQL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Database is up', () => pm.expect(pm.response.json().info.database.status).to.eql('up'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "auth": { "type": "noauth" },
             "method": "GET",

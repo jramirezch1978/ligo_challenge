@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { createTestApp } from './utils/test-app.util';
 
 describe('Auth (e2e)', () => {
@@ -38,6 +38,9 @@ describe('Auth (e2e)', () => {
   });
 
   it('rejects unauthenticated access to protected routes with 401', async () => {
-    await request(app.getHttpServer()).get('/api/wallets/wal_001/balance').expect(401);
+    await request(app.getHttpServer())
+      .get('/api/wallets/balance')
+      .query({ walletId: 'wal_001' })
+      .expect(401);
   });
 });

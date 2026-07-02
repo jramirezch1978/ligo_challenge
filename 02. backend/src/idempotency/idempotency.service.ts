@@ -55,14 +55,24 @@ export class IdempotencyService {
     const requestHash = this.hashPayload(requestPayload);
     const repository = queryRunner.manager.getRepository(IdempotencyKeyEntity);
 
+    // ISOLATION nuance (ACID): PostgreSQL aborts the ENTIRE surrounding transaction
+    // after any failed statement — including this INSERT's unique-violation on a
+    // colliding key — so any further query on the same transaction (like the SELECT
+    // in `resolveExistingRecord`) would also fail with "current transaction is
+    // aborted". Wrapping the attempt in a SAVEPOINT (a nested transaction from
+    // TypeORM's perspective) lets us roll back ONLY this failed statement while
+    // keeping the outer business transaction perfectly usable afterwards.
     try {
+      await queryRunner.startTransaction();
       await repository.insert({
         idempotencyKey,
         endpoint,
         requestHash,
         status: IdempotencyRecordStatus.PROCESSING,
       });
+      await queryRunner.commitTransaction();
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       if (this.isUniqueViolation(error)) {
         return this.resolveExistingRecord<T>(queryRunner, idempotencyKey, endpoint, requestHash);
       }

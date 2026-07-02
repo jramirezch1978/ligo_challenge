@@ -128,11 +128,21 @@ npm run test:e2e                                   # integración contra Postgre
 docker compose -f docker-compose.test.yml down     # limpieza
 ```
 
-Los tests de integración cubren, contra una base de datos real: login, balance, movimientos paginados,
+**91 tests automatizados en verde** (46 unitarios + 45 e2e, verificado en este entorno contra PostgreSQL 17
+real). Los tests de integración cubren, contra una base de datos real: login, balance, movimientos paginados,
 débito/crédito exitoso, fondos insuficientes, wallet bloqueada/inexistente, moneda distinta, transferencia
-(éxito y bordes), reversa (débito y transferencia), doble reversa, reversa de una reversa, e idempotencia
-(replay exacto y conflicto 409). Los tests unitarios cubren la lógica de negocio de `TransactionsService`
-de forma aislada (sin base de datos), `IdempotencyService`, `AuthService` y la utilidad `Money`.
+(éxito y bordes), reversa (débito y transferencia), doble reversa, reversa de una reversa, idempotencia
+(replay exacto y conflicto 409), auditoría (`audit_logs` recibe una entrada por cada operación crítica), y
+seguridad (401/403 por rol). Los tests unitarios cubren la lógica de negocio de `TransactionsService` de
+forma aislada (sin base de datos), `IdempotencyService`, `AuthService` y la utilidad `Money`.
+
+La tabla completa que mapea **cada regla de negocio crítica del challenge** con su test unitario, su test e2e
+y su request de Postman correspondiente está en
+[`../04. Entregables/architecture.md`](<../04. Entregables/architecture.md>), sección "Cobertura de pruebas
+de las reglas de negocio críticas". La colección Postman
+(`../04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json`) incluye scripts `pm.test`
+ejecutables (Collection Runner) en las carpetas **"Reglas de negocio - Wallet"** y **"Reglas de negocio -
+Transacciones"**, uno por cada regla del checklist, no solo requests para inspección manual.
 
 ## Variables de entorno
 

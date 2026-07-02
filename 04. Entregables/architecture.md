@@ -214,3 +214,41 @@ imagen `03. database` instala **chrony** y lo arranca desde
 Verificación rápida ya validada en este entorno: `docker exec ligo-wallet-postgres chronyc tracking` /
 `chronyc sources` muestran sincronización activa contra `pool.ntp.org`, y `SHOW timezone;` /
 `SELECT now();` devuelven `America/Lima` con el offset `-05` correcto.
+
+### 11. Cobertura de pruebas de las reglas de negocio críticas
+
+Cada regla de negocio crítica exigida por el challenge tiene al menos: (a) un test unitario (mocks, rápido,
+`02. backend/src/**/*.spec.ts`), (b) un test de integración end-to-end contra PostgreSQL real
+(`02. backend/test/integration/*.e2e-spec.ts`), y (c) un request de Postman con un script `pm.test`
+ejecutable (no solo inspección manual) en `04. Entregables/postman/Ligo-Wallet-Service.postman_collection.json`,
+carpetas **"Reglas de negocio - Wallet"** y **"Reglas de negocio - Transacciones (atomicidad e idempotencia)"`.
+
+**91 tests automatizados en verde** (46 unitarios + 45 e2e, ejecutados contra PostgreSQL 17 real en este
+entorno: `npm test` y `npm run test:e2e` dentro de `02. backend`).
+
+| Regla de negocio crítica | Test unitario | Test e2e (Postgres real) | Request Postman |
+|---|---|---|---|
+| Solo wallets `ACTIVE` pueden operar | `transactions.service.spec.ts` → *throws WalletNotActiveException for a blocked wallet* | `transactions.e2e-spec.ts` → *rejects operations on a blocked wallet with 422*; `transfer.e2e-spec.ts` → *rejects a transfer when the target wallet is blocked* | `[Wallet] Solo ACTIVE puede operar...` (422), `[Transfer] Wallet destino bloqueada` (422) |
+| No se permite saldo negativo | `transactions.service.spec.ts` → *throws InsufficientFundsException and does not mutate the balance* | `transactions.e2e-spec.ts` → *rejects a debit with insufficient funds (422)*; `transfer.e2e-spec.ts` → *rejects a transfer with insufficient funds* | `[Wallet] No se permite saldo negativo...` (422), `[Transfer] Fondos insuficientes...` (422) |
+| No se permite operar con monedas distintas | `transactions.service.spec.ts` → *throws CurrencyMismatchException when currencies differ* | `transactions.e2e-spec.ts` → *returns 422 when the currency does not match*; `transfer.e2e-spec.ts` → *rejects a transfer between wallets with different currencies* | `[Wallet] No se permite operar con monedas distintas...` (422), `[Transfer] Monedas distintas...` (422) |
+| Montos como decimal/string; nunca float | `money.util.spec.ts` (validación de formato); DTO `IsMoneyAmount` | `transactions.e2e-spec.ts` → *returns 400 for an invalid money amount format* (3 decimales) | `[Wallet] Montos siempre decimal/string, nunca float...` (400) |
+| Saldo disponible se actualiza dentro de la misma transacción | `transactions.service.spec.ts` → *debits/credits a wallet and persists the resulting balance*, *rolls back the transaction when the business logic fails* | `transactions.e2e-spec.ts` → *processes a successful debit/credit ... updates the balance atomically* | `Create debit`, `Create credit` |
+| Toda operación crítica debe ser atómica | `transactions.service.spec.ts` → *moves funds from source to target atomically* (ver `withTransaction`, comentado con las 4 garantías ACID) | `transfer.e2e-spec.ts` → *transfers funds between two wallets with a double-entry ledger* | `Transfer between wallets` |
+| Si una parte falla, debe ejecutarse rollback | `transactions.service.spec.ts` → *rolls back the transaction when the business logic fails*; *rejects a transfer with insufficient funds and leaves both balances untouched* | `transfer.e2e-spec.ts` → *rejects a transfer with insufficient funds and leaves both balances untouched* | (verificado por los mismos requests 422 de arriba: el balance no cambia) |
+| La misma Idempotency-Key debe devolver la misma respuesta | `idempotency.service.spec.ts` → *replays the stored response without re-executing the handler* | `transactions.e2e-spec.ts` / `transfer.e2e-spec.ts` / `reversal.e2e-spec.ts` → *replays the exact same response when the same Idempotency-Key is retried* | `[Idempotencia] Primera llamada...` + `[Idempotencia] Misma Idempotency-Key + mismo body -> misma respuesta exacta` |
+| Misma Idempotency-Key con body diferente debe responder conflicto | `idempotency.service.spec.ts` → *throws a conflict when the same key is reused with a different payload* | `transactions.e2e-spec.ts` → *returns 409 when the same Idempotency-Key is reused with a different payload* | `[Idempotencia] Misma Idempotency-Key + body DISTINTO -> conflicto` (409) |
+| Una transacción reversada no puede reversarse nuevamente | `transactions.service.spec.ts` → *throws TransactionAlreadyReversedException on double reversal*; *throws TransactionNotReversibleException when reversing a REVERSAL* | `reversal.e2e-spec.ts` → *rejects reversing the same transaction twice with 409*; *returns 422 when trying to reverse a reversal itself* | `[Transacciones] Una transacción reversada no puede reversarse de nuevo` (409), `[Transacciones] Una reversa no puede reversarse a si misma` (422) |
+| Toda operación crítica debe dejar auditoría | *(nuevo)* `transactions.e2e-spec.ts` → *leaves an audit trail entry for every critical (balance-affecting) operation* (verifica directamente la fila insertada en `audit_logs` vía `AuditService.record`, ejecutado dentro de la misma transacción — ver §2/ACID) | mismo test anterior (es e2e) | *(no expuesto por API por diseño; se verifica a nivel de base de datos en el test e2e citado, evitando exponer un endpoint de auditoría sin necesidad real del challenge)* |
+
+Adicionalmente, el mismo mecanismo de tests cubre reglas de seguridad transversales (401/403) y casos límite
+(404 wallet/transacción inexistente, 400 payloads inválidos), documentados en la sección 5 y en las carpetas
+`Auth`, `Wallets` y `Transactions` de la colección Postman.
+
+Durante la elaboración de esta cobertura se detectó y corrigió un bug real preexistente en
+`IdempotencyService.run()`: al colisionar dos requests con la misma `Idempotency-Key`, el `INSERT` fallaba
+correctamente por restricción única, pero la lectura del registro existente (`resolveExistingRecord`) se
+ejecutaba dentro de la MISMA transacción que PostgreSQL ya había abortado por ese error, provocando un fallo
+en cascada (`current transaction is aborted`). La corrección envuelve el intento de inserción en un
+`SAVEPOINT` (transacción anidada de TypeORM), de forma que solo esa sentencia se revierte y la transacción de
+negocio sigue siendo utilizable para leer y reproducir la respuesta original — una aplicación directa de
+Isolation (ACID) a nivel de sentencia individual.

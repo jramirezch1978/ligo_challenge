@@ -18,6 +18,9 @@ function buildQueryRunner(repositoryOverrides: Record<string, jest.Mock> = {}) {
       getRepository: () => repository,
       findOne: jest.fn(),
     },
+    startTransaction: jest.fn().mockResolvedValue(undefined),
+    commitTransaction: jest.fn().mockResolvedValue(undefined),
+    rollbackTransaction: jest.fn().mockResolvedValue(undefined),
   } as unknown as QueryRunner;
 
   return { queryRunner, repository };

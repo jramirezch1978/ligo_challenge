@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import * as request from 'supertest';
+import request from 'supertest';
 import {
   createTestApp,
   createTestWallet,
@@ -8,6 +8,7 @@ import {
   newIdempotencyKey,
 } from './utils/test-app.util';
 import { WalletStatus } from '@app/common/enums/wallet-status.enum';
+import { AuditLogEntity } from '@app/audit/entities/audit-log.entity';
 
 describe('Transactions (e2e)', () => {
   let app: INestApplication;
@@ -23,7 +24,7 @@ describe('Transactions (e2e)', () => {
     await app.close();
   });
 
-  const post = (body: unknown, idempotencyKey?: string) => {
+  const post = (body: object, idempotencyKey?: string) => {
     const req = request(app.getHttpServer())
       .post('/api/transactions')
       .set('Authorization', `Bearer ${token}`);
@@ -201,5 +202,28 @@ describe('Transactions (e2e)', () => {
       .query({ transactionId: 'txn_does_not_exist' })
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
+  });
+
+  it('leaves an audit trail entry for every critical (balance-affecting) operation', async () => {
+    const wallet = await createTestWallet(dataSource, { availableBalance: '100.00' });
+
+    const created = await post(
+      { walletId: wallet.id, type: 'DEBIT', amount: '15.00', currency: 'PEN' },
+      newIdempotencyKey(),
+    ).expect(201);
+
+    const auditRepository = dataSource.getRepository(AuditLogEntity);
+    const entries = await auditRepository.find({
+      where: { entityId: created.body.transactionId, entityType: 'Transaction' },
+    });
+
+    expect(entries.length).toBeGreaterThanOrEqual(1);
+    expect(entries[0]).toMatchObject({
+      action: 'TRANSACTION_DEBIT_CREATED',
+      entityType: 'Transaction',
+      entityId: created.body.transactionId,
+      performedBy: 'senior.backend',
+    });
+    expect(entries[0].metadata).toMatchObject({ walletId: wallet.id, amount: '15.00' });
   });
 });

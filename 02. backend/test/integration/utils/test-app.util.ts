@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '@app/app.module';
 import { WalletEntity } from '@app/wallets/entities/wallet.entity';
 import { WalletStatus } from '@app/common/enums/wallet-status.enum';

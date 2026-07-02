@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import * as request from 'supertest';
+import request from 'supertest';
 import {
   createTestApp,
   createTestWallet,
@@ -23,7 +23,7 @@ describe('Transfers (e2e)', () => {
     await app.close();
   });
 
-  const transfer = (body: unknown, idempotencyKey?: string) => {
+  const transfer = (body: object, idempotencyKey?: string) => {
     const req = request(app.getHttpServer())
       .post('/api/transactions/transfer')
       .set('Authorization', `Bearer ${token}`);
