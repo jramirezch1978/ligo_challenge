@@ -12,11 +12,24 @@ fáciles de ubicar durante la revisión.
 | 2 | README con instrucciones claras | [`../README.md`](../README.md) (raíz) + README por capa ([`01. frontend`](<../01. frontend/README.md>), [`02. backend`](<../02. backend/README.md>)) | ✅ |
 | 3 | Docker Compose para app + PostgreSQL | [`docker-compose.yml`](docker-compose.yml) (este mismo directorio) | ✅ |
 | 4 | Migraciones o script de inicialización | Migraciones TypeORM: [`../02. backend/src/database/migrations`](<../02. backend/src/database/migrations>) · Scripts SQL: [`../03. database/init`](<../03. database/init>) | ✅ |
-| 5 | Swagger / OpenAPI | Spec exportado: [`openapi.json`](openapi.json) · UI en vivo: `http://localhost:3000/docs` una vez desplegado el backend (`SwaggerModule`, ver `main.ts`) | ✅ |
-| 6 | Tests unitarios e integración | Unitarios: `*.spec.ts` junto a cada servicio en `02. backend/src` · Integración: [`../02. backend/test/integration`](<../02. backend/test/integration>) | ✅ |
+| 5 | Swagger / OpenAPI | Spec exportado: [`openapi.json`](openapi.json) · UI en vivo: `http://localhost:3000/docs` (`SwaggerModule` en `02. backend/src/main.ts`) | ✅ |
+| 6 | Tests unitarios e integración | Unitarios: `*.spec.ts` en [`../02. backend/src`](../02. backend/src) · Integración: [`../02. backend/test/integration`](../02. backend/test/integration) | ✅ |
 | 7 | Diagrama simple de arquitectura | [`architecture.md`](architecture.md) | ✅ |
 | 8 | Colección Postman | [`postman/Ligo-Wallet-Service.postman_collection.json`](postman/Ligo-Wallet-Service.postman_collection.json) | ✅ |
-| 9 | Declaración de uso de IA | [`ai-usage.md`](ai-usage.md) | ✅ |
+| 9 | Declaración de uso de IA | [`declaracion-ia.md`](declaracion-ia.md) | ✅ |
+
+## Contenido de esta carpeta
+
+```
+04. Entregables/
+  README.md               Este archivo (checklist de entregables)
+  docker-compose.yml       App + PostgreSQL + backend + frontend en un solo comando
+  openapi.json             Especificación OpenAPI 3.0 exportada del backend (/docs-json)
+  architecture.md          Diagrama de arquitectura y decisiones de diseño
+  declaracion-ia.md        Declaración de uso de IA (plantilla del challenge)
+  postman/
+    Ligo-Wallet-Service.postman_collection.json
+```
 
 ## Cómo levantar todo con un solo comando (Docker Compose)
 
@@ -43,26 +56,34 @@ docker compose down -v            # detener y reiniciar la base de datos desde c
 > Este `docker-compose.yml` usa las mismas imágenes/`Dockerfile` que `build.bat`/`deploy.bat` de cada capa
 > (`01. frontend`, `02. backend`, `03. database`), a las que llega por rutas relativas (`../01. frontend`,
 > etc.). Es una alternativa multiplataforma a los `.bat`, pensada para levantarse "desde cero" en cualquier
-> máquina: Compose crea su propia red y volumen con nombre calificado por el proyecto, por lo que no choca
-> con contenedores/redes que ya existan. No se recomienda mezclar ambos mecanismos a la vez (o `.bat`, o
-> `docker compose`) para evitar tener dos Postgres o dos backends corriendo en paralelo.
+> máquina. No se recomienda mezclar ambos mecanismos a la vez (o `.bat`, o `docker compose`) para evitar
+> tener dos Postgres o dos backends corriendo en paralelo.
 
 ## Credenciales de demo (login)
 
-| Cuenta | username | password | rol | alcance |
+| Cuenta | username | password | rol | Alcance |
 |---|---|---|---|---|
 | Backoffice | `senior.backend` | `Password123` | `ADMIN` | Opera cualquier wallet |
 | Cliente demo | `juan.perez` | `Cliente123` | `CUSTOMER` | Solo opera `wal_001` (dueño "Juan Perez"); `403 Forbidden` sobre cualquier otro wallet |
 
-## Contenido de esta carpeta
+## OpenAPI
 
+El archivo [`openapi.json`](openapi.json) contiene la especificación OpenAPI 3.0 exportada desde el backend
+en ejecución (`GET /docs-json`). Incluye todos los endpoints actuales:
+
+- `POST /api/auth/login`
+- `GET /api/wallets/list`
+- `GET /api/wallets/balance`
+- `GET /api/wallets/movements`
+- `POST /api/transactions`
+- `POST /api/transactions/transfer`
+- `POST /api/transactions/reversal`
+- `GET /api/transactions/status`
+
+Para regenerarlo tras cambios en la API:
+
+```bash
+docker exec ligo-wallet-backend node -e "const http=require('http');http.get('http://127.0.0.1:3000/docs-json',res=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>console.log(d));})" > openapi.json
 ```
-04. Entregables/
-  README.md               Este archivo (checklist de entregables)
-  docker-compose.yml       App + PostgreSQL en un solo comando
-  openapi.json             Especificacion OpenAPI 3.0 exportada del backend (/docs-json)
-  architecture.md          Diagrama de arquitectura y decisiones de diseño
-  ai-usage.md              Declaración de uso de IA
-  postman/
-    Ligo-Wallet-Service.postman_collection.json
-```
+
+(O abrir `http://localhost:3000/docs` en el navegador para la UI interactiva de Swagger.)

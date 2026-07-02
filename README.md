@@ -161,15 +161,16 @@ Carpeta con los entregables del challenge que no son código de una capa especí
 ```
 04. Entregables/
   docker-compose.yml    Levanta postgres + backend + frontend con un solo comando
-  architecture.md        Diagrama de arquitectura y decisiones de diseño
-  ai-usage.md             Declaración de uso de IA
+  openapi.json          Especificación OpenAPI 3.0 exportada del backend
+  architecture.md       Diagrama de arquitectura y decisiones de diseño
+  declaracion-ia.md     Declaración de uso de IA
   postman/
     Ligo-Wallet-Service.postman_collection.json   Colección Postman de la API
-  README.md               Checklist de entregables exigidos por el challenge
+  README.md             Checklist de entregables exigidos por el challenge
 ```
 
 Ver el checklist completo en [`04. Entregables/README.md`](<04. Entregables/README.md>).
 
 ## Declaración de uso de IA
 
-Ver [`04. Entregables/ai-usage.md`](<04. Entregables/ai-usage.md>).
+Ver [`04. Entregables/declaracion-ia.md`](<04. Entregables/declaracion-ia.md>).

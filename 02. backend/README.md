@@ -159,4 +159,4 @@ deploy.bat         Construye la imagen Docker y levanta el contenedor
 
 ## Declaración de uso de IA
 
-Ver [`../04. Entregables/ai-usage.md`](<../04. Entregables/ai-usage.md>).
+Ver [`../04. Entregables/declaracion-ia.md`](<../04. Entregables/declaracion-ia.md>).

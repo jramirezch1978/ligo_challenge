@@ -36,6 +36,36 @@
         ]
       }
     },
+    "/api/wallets/list": {
+      "get": {
+        "operationId": "WalletsController_listAccessibleWallets",
+        "summary": "List wallets accessible to the authenticated user (all for ADMIN, owned only for CUSTOMER)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WalletSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "wallets"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/wallets/balance": {
       "get": {
         "operationId": "WalletsController_getBalance",
@@ -447,6 +477,39 @@
         "required": [
           "token",
           "expiresIn"
+        ]
+      },
+      "WalletSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "wal_001"
+          },
+          "ownerName": {
+            "type": "object",
+            "example": "Juan Perez",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "PEN"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "BLOCKED",
+              "CLOSED"
+            ],
+            "example": "ACTIVE"
+          }
+        },
+        "required": [
+          "id",
+          "ownerName",
+          "currency",
+          "status"
         ]
       },
       "BalanceResponseDto": {
